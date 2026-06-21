@@ -1,4 +1,4 @@
-import type { Response, Request, CookieOptions } from "express";
+import type { Request, Response, CookieOptions } from "express";
 
 export function setCookie(res: Response, name: string, value: string, opts: CookieOptions) {
     res.cookie(name, value, opts);

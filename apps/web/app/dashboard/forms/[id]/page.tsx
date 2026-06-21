@@ -1,324 +1,196 @@
+// apps/web/app/dashboard/forms/[id]/page.tsx
+
 "use client";
 
-import { use, useEffect, useState } from "react";
-import { useForm, Controller, type SubmitHandler } from "react-hook-form";
-import { PlusIcon, PencilIcon, Trash2Icon } from "lucide-react";
+import { useState, type FormEvent } from "react";
+import { useParams } from "next/navigation";
+
+import { useCreateField, useGetFields } from "~/hooks/api/form-field";
+
 import { Button } from "~/components/ui/button";
-import { Badge } from "~/components/ui/badge";
-import { Checkbox } from "~/components/ui/checkbox";
-import { Label } from "~/components/ui/label";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
 } from "~/components/ui/dialog";
-import { Field, FieldGroup, FieldLabel } from "~/components/ui/field";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
-import { useGetFields, useCreateField, useUpdateField, useDeleteField } from "~/hooks/api/form";
+import { Checkbox } from "~/components/ui/checkbox";
 
-const FIELD_TYPES = ["TEXT", "NUMBER", "EMAIL", "YES_NO", "PASSWORD"] as const;
-type FieldType = (typeof FIELD_TYPES)[number];
+export default function FormBuilder() {
+    const params = useParams();
+    const formId = params?.id as string | undefined;
 
-const FIELD_TYPE_LABELS: Record<FieldType, string> = {
-  TEXT: "Text",
-  NUMBER: "Number",
-  EMAIL: "Email",
-  YES_NO: "Yes / No",
-  PASSWORD: "Password",
-};
+    const [open, setOpen] = useState(false);
+    const [label, setLabel] = useState("");
+    const [type, setType] = useState<"TEXT" | "NUMBER" | "EMAIL" | "YES_NO" | "PASSWORD">("TEXT");
+    const [description, setDescription] = useState("");
+    const [placeholder, setPlaceholder] = useState("");
+    const [isRequired, setIsRequired] = useState(false);
 
-type FieldFormValues = {
-  label: string;
-  type: FieldType;
-  description: string;
-  placeholder: string;
-  isRequired: boolean;
-};
+    const { createFieldAsync, status, error } = useCreateField(formId ?? "");
+    const { fields, isLoading: fieldsLoading } = useGetFields(formId ?? "");
 
-type FieldRow = {
-  id: string;
-  label: string;
-  labelKey: string;
-  type: FieldType;
-  description?: string | null;
-  placeholder?: string | null;
-  isRequired: boolean;
-  index: string;
-};
+    const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        if (!formId) return;
 
-const DEFAULT_VALUES: FieldFormValues = {
-  label: "",
-  type: "TEXT",
-  description: "",
-  placeholder: "",
-  isRequired: false,
-};
+        await createFieldAsync({
+            label: label.trim(),
+            type,
+            formId,
+            description: description.trim() ? description.trim() : undefined,
+            placeholder: placeholder.trim() ? placeholder.trim() : undefined,
+            isRequired,
+        });
 
-function FieldForm({
-  onSubmit,
-  isSubmitting,
-  defaultValues,
-  onCancel,
-  submitLabel,
-}: {
-  onSubmit: SubmitHandler<FieldFormValues>;
-  isSubmitting: boolean;
-  defaultValues: FieldFormValues;
-  onCancel: () => void;
-  submitLabel: string;
-}) {
-  const { register, handleSubmit, control, watch, reset } = useForm<FieldFormValues>({
-    defaultValues,
-  });
+        setOpen(false);
+        setLabel("");
+        setType("TEXT");
+        setDescription("");
+        setPlaceholder("");
+        setIsRequired(false);
+    };
 
-  useEffect(() => {
-    reset(defaultValues);
-  }, [defaultValues, reset]);
+    return (
+        <main className="min-h-screen bg-black px-6 py-6 text-white">
+            <div className="mx-auto max-w-3xl">
+                <div className="flex items-center justify-between mb-6">
+                    <h1 className="text-2xl font-semibold">Form Builder</h1>
 
-  const type = watch("type");
-  const hasPlaceholder = type !== "YES_NO";
+                    <Dialog open={open} onOpenChange={setOpen}>
+                        <DialogTrigger asChild>
+                            <Button className="bg-white text-black">Create Field</Button>
+                        </DialogTrigger>
 
-  return (
-    <form onSubmit={handleSubmit(onSubmit)}>
-      <FieldGroup>
-        <Field>
-          <FieldLabel htmlFor="label">Label</FieldLabel>
-          <Input
-            id="label"
-            placeholder="e.g. Full Name"
-            {...register("label", { required: true, maxLength: 100 })}
-          />
-        </Field>
+                        <DialogContent className="border-white/10 bg-zinc-950 text-white sm:max-w-md">
+                            <DialogHeader>
+                                <DialogTitle>Create Field</DialogTitle>
+                                <DialogDescription className="text-white/60">
+                                    Add a field to this form.
+                                </DialogDescription>
+                            </DialogHeader>
 
-        <Field>
-          <FieldLabel htmlFor="type">Type</FieldLabel>
-          <Controller
-            name="type"
-            control={control}
-            render={({ field }) => (
-              <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger id="type" className="w-full">
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {FIELD_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {FIELD_TYPE_LABELS[t]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          />
-        </Field>
+                            <form className="space-y-4" onSubmit={handleSubmit}>
+                                <div>
+                                    <label className="text-sm text-white/70 block mb-1">
+                                        Label
+                                    </label>
+                                    <Input
+                                        value={label}
+                                        onChange={(e) => setLabel(e.target.value)}
+                                        placeholder="Field label"
+                                    />
+                                </div>
 
-        <Field>
-          <FieldLabel htmlFor="description">Description</FieldLabel>
-          <Textarea
-            id="description"
-            placeholder="Helper text shown below the field (optional)"
-            {...register("description")}
-          />
-        </Field>
+                                <div>
+                                    <label className="text-sm text-white/70 block mb-1">Type</label>
+                                    <select
+                                        value={type}
+                                        onChange={(e) =>
+                                            setType(
+                                                e.target.value as
+                                                    | "TEXT"
+                                                    | "NUMBER"
+                                                    | "EMAIL"
+                                                    | "YES_NO"
+                                                    | "PASSWORD",
+                                            )
+                                        }
+                                        className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white"
+                                    >
+                                        <option value="TEXT">Text</option>
+                                        <option value="NUMBER">Number</option>
+                                        <option value="EMAIL">Email</option>
+                                        <option value="YES_NO">Yes / No</option>
+                                        <option value="PASSWORD">Password</option>
+                                    </select>
+                                </div>
 
-        {hasPlaceholder && (
-          <Field>
-            <FieldLabel htmlFor="placeholder">Placeholder</FieldLabel>
-            <Input
-              id="placeholder"
-              placeholder="e.g. Enter your name"
-              {...register("placeholder")}
-            />
-          </Field>
-        )}
+                                <div>
+                                    <label className="text-sm text-white/70 block mb-1">
+                                        Description
+                                    </label>
+                                    <Textarea
+                                        value={description}
+                                        onChange={(e) => setDescription(e.target.value)}
+                                        placeholder="Optional helper text"
+                                    />
+                                </div>
 
-        <div className="flex items-center gap-2">
-          <Controller
-            name="isRequired"
-            control={control}
-            render={({ field }) => (
-              <Checkbox id="isRequired" checked={field.value} onCheckedChange={field.onChange} />
-            )}
-          />
-          <Label htmlFor="isRequired" className="text-sm font-medium">
-            Required field
-          </Label>
-        </div>
-      </FieldGroup>
+                                <div>
+                                    <label className="text-sm text-white/70 block mb-1">
+                                        Placeholder
+                                    </label>
+                                    <Input
+                                        value={placeholder}
+                                        onChange={(e) => setPlaceholder(e.target.value)}
+                                        placeholder="Optional placeholder"
+                                    />
+                                </div>
 
-      <DialogFooter className="mt-6">
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Saving..." : submitLabel}
-        </Button>
-      </DialogFooter>
-    </form>
-  );
-}
+                                <div className="flex items-center gap-2">
+                                    <Checkbox
+                                        checked={isRequired}
+                                        onCheckedChange={(v) => setIsRequired(Boolean(v))}
+                                    />
+                                    <span className="text-sm text-white/70">Required</span>
+                                </div>
 
-export default function FormBuilderPage({ params }: { params: Promise<{ id: string }> }) {
-  // TODO: Debug this line
-  const { id: formId } = use(params);
+                                {error ? (
+                                    <p className="text-sm text-red-400">{error.message}</p>
+                                ) : null}
 
-  const { fields, isLoading } = useGetFields(formId);
-  const { createFieldAsync, isError: isCreateError, error: createError } = useCreateField(formId);
-  const { updateFieldAsync } = useUpdateField(formId);
-  const { deleteFieldAsync } = useDeleteField(formId);
-
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editingField, setEditingField] = useState<FieldRow | null>(null);
-
-  const handleCreate: SubmitHandler<FieldFormValues> = async (values) => {
-    await createFieldAsync({
-      formId,
-      label: values.label,
-      type: values.type,
-      description: values.description || undefined,
-      placeholder: values.placeholder || undefined,
-      isRequired: values.isRequired,
-    });
-    setCreateOpen(false);
-  };
-
-  const handleUpdate: SubmitHandler<FieldFormValues> = async (values) => {
-    if (!editingField) return;
-    await updateFieldAsync({
-      fieldId: editingField.id,
-      label: values.label,
-      type: values.type,
-      description: values.description || null,
-      placeholder: values.placeholder || null,
-      isRequired: values.isRequired,
-    });
-    setEditingField(null);
-  };
-
-  const handleDelete = async (fieldId: string) => {
-    await deleteFieldAsync({ fieldId });
-  };
-
-  return (
-    <div className="p-6 flex flex-col gap-6 max-w-2xl">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Form Builder</h1>
-        <Button onClick={() => setCreateOpen(true)}>
-          <PlusIcon className="size-4" />
-          Add Field
-        </Button>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        {isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading fields...</p>
-        ) : !fields || fields.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-            No fields yet. Add your first field.
-          </div>
-        ) : (
-          fields.map((field) => (
-            <div
-              key={field.id}
-              className="flex items-start justify-between gap-4 rounded-lg border bg-card p-4"
-            >
-              <div className="flex flex-col gap-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium text-sm">{field.label}</span>
-                  <Badge variant="outline" className="text-xs">
-                    {FIELD_TYPE_LABELS[field.type as FieldType]}
-                  </Badge>
-                  {field.isRequired && (
-                    <Badge variant="secondary" className="text-xs">
-                      Required
-                    </Badge>
-                  )}
+                                <DialogFooter>
+                                    <Button
+                                        type="submit"
+                                        disabled={status === "pending" || !label.trim()}
+                                        className="bg-white text-black"
+                                    >
+                                        {status === "pending" ? "Creating..." : "Create Field"}
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        </DialogContent>
+                    </Dialog>
                 </div>
-                {field.description && (
-                  <p className="text-xs text-muted-foreground truncate">{field.description}</p>
-                )}
-                <p className="text-xs text-muted-foreground/60 font-mono">{field.labelKey}</p>
-              </div>
 
-              <div className="flex items-center gap-1 shrink-0">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setEditingField(field as FieldRow)}
-                >
-                  <PencilIcon className="size-4" />
-                  <span className="sr-only">Edit {field.label}</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-destructive hover:text-destructive"
-                  onClick={() => handleDelete(field.id)}
-                >
-                  <Trash2Icon className="size-4" />
-                  <span className="sr-only">Delete {field.label}</span>
-                </Button>
-              </div>
+                <section className="grid gap-3">
+                    <div className="border border-white/10 bg-white/5 p-6 text-sm text-white/60">
+                        Form canvas
+                    </div>
+
+                    {fieldsLoading ? (
+                        <div className="border border-white/10 bg-white/5 p-4 text-sm text-white/50">
+                            Loading fields...
+                        </div>
+                    ) : fields && fields.length > 0 ? (
+                        fields.map((f) => (
+                            <div
+                                key={f.id}
+                                className="border border-white/10 bg-white/5 p-4 flex items-center justify-between"
+                            >
+                                <div>
+                                    <div className="text-white font-medium">{f.label}</div>
+                                    <div className="text-white/60 text-sm">
+                                        {f.description || f.placeholder || ""}
+                                    </div>
+                                </div>
+
+                                <div className="text-sm text-white/60">{f.type}</div>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="border border-white/10 bg-white/5 p-4 text-sm text-white/60">
+                            No fields yet.
+                        </div>
+                    )}
+                </section>
             </div>
-          ))
-        )}
-      </div>
-
-      {/* Create field modal */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add field</DialogTitle>
-          </DialogHeader>
-          {isCreateError && <p className="text-sm text-destructive">{createError?.message}</p>}
-          <FieldForm
-            defaultValues={DEFAULT_VALUES}
-            onSubmit={handleCreate}
-            isSubmitting={false}
-            onCancel={() => setCreateOpen(false)}
-            submitLabel="Add Field"
-          />
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit field modal */}
-      <Dialog
-        open={!!editingField}
-        onOpenChange={(open) => {
-          if (!open) setEditingField(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit field</DialogTitle>
-          </DialogHeader>
-          {editingField && (
-            <FieldForm
-              defaultValues={{
-                label: editingField.label,
-                type: editingField.type,
-                description: editingField.description ?? "",
-                placeholder: editingField.placeholder ?? "",
-                isRequired: editingField.isRequired,
-              }}
-              onSubmit={handleUpdate}
-              isSubmitting={false}
-              onCancel={() => setEditingField(null)}
-              submitLabel="Save Changes"
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
+        </main>
+    );
 }

@@ -1,157 +1,180 @@
+// apps/web/app/dashboard/forms/page.tsx
+
 "use client";
 
-import { useState } from "react";
-import { useForm, type SubmitHandler } from "react-hook-form";
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { PencilIcon } from "lucide-react";
-import { Button } from "~/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "~/components/ui/dialog";
-import { Field, FieldGroup, FieldLabel } from "~/components/ui/field";
-import { Input } from "~/components/ui/input";
-import { Textarea } from "~/components/ui/textarea";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "~/components/ui/table";
+import { Eye, PencilLine } from "lucide-react";
+
 import { useCreateForm, useListForms } from "~/hooks/api/form";
 
-type CreateFormValues = {
-  title: string;
-  description: string;
-};
+import { Button } from "~/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "~/components/ui/dialog";
+import { Input } from "~/components/ui/input";
+import { Textarea } from "~/components/ui/textarea";
 
-export default function FormsPage() {
-  const [open, setOpen] = useState(false);
-  const { createFormAsync, isError, error } = useCreateForm();
-  const { forms, isLoading } = useListForms();
+export default function DashboardForms() {
+    const [open, setOpen] = useState(false);
+    const [title, setTitle] = useState("");
+    const [description, setDescription] = useState("");
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { isSubmitting },
-  } = useForm<CreateFormValues>({
-    defaultValues: { title: "", description: "" },
-  });
+    const { createFormAsync, error, status } = useCreateForm();
+    const { forms, isLoading } = useListForms();
 
-  const onSubmit: SubmitHandler<CreateFormValues> = async (values) => {
-    await createFormAsync({
-      title: values.title,
-      description: values.description || undefined,
-    });
-    reset();
-    setOpen(false);
-  };
+    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
 
-  return (
-    <div className="p-6 flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Forms</h1>
-        <Button onClick={() => setOpen(true)}>Create Form</Button>
-      </div>
+        await createFormAsync({
+            title: title.trim(),
+            description: description.trim() ? description.trim() : undefined,
+        });
 
-      <div className="rounded-lg border overflow-hidden">
-        <Table>
-          <TableHeader className="bg-muted">
-            <TableRow>
-              <TableHead>Title</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead className="w-16" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                  Loading...
-                </TableCell>
-              </TableRow>
-            ) : !forms || forms.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                  No forms yet. Create your first one.
-                </TableCell>
-              </TableRow>
-            ) : (
-              forms.map((form) => (
-                <TableRow key={form.id}>
-                  <TableCell className="font-medium">{form.title}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {form.description ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {form.createdAt ? new Date(form.createdAt).toLocaleDateString() : "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="icon" asChild>
-                      <Link href={`/dashboard/forms/${form.id}`}>
-                        <PencilIcon className="size-4" />
-                        <span className="sr-only">Edit {form.title}</span>
-                      </Link>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+        setOpen(false);
+        setTitle("");
+        setDescription("");
+    };
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create a new form</DialogTitle>
-          </DialogHeader>
+    return (
+        <main className="min-h-screen bg-black px-6 py-6 text-white">
+            <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <p className="text-sm text-white/60">Forms</p>
+                        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+                    </div>
 
-          <form onSubmit={handleSubmit(onSubmit)}>
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="title">Title</FieldLabel>
-                <Input
-                  id="title"
-                  placeholder="e.g. Customer Feedback"
-                  {...register("title", { required: true, maxLength: 55 })}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="description">Description</FieldLabel>
-                <Textarea
-                  id="description"
-                  placeholder="What is this form for? (optional)"
-                  {...register("description", { maxLength: 300 })}
-                />
-              </Field>
-              {isError && (
-                <p className="text-sm text-destructive">{error?.message}</p>
-              )}
-            </FieldGroup>
+                    <Dialog open={open} onOpenChange={setOpen}>
+                        <DialogTrigger asChild>
+                            <Button className="bg-white text-black hover:bg-white/90">
+                                Create Form
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="border-white/10 bg-zinc-950 text-white sm:max-w-md">
+                            <DialogHeader>
+                                <DialogTitle>Create Form</DialogTitle>
+                                <DialogDescription className="text-white/60">
+                                    Add a title and optional description.
+                                </DialogDescription>
+                            </DialogHeader>
 
-            <DialogFooter className="mt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => { reset(); setOpen(false); }}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Creating..." : "Create Form"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
+                            <form className="space-y-4" onSubmit={handleSubmit}>
+                                <div className="space-y-2">
+                                    <label htmlFor="title" className="text-sm text-white/70">
+                                        Title
+                                    </label>
+                                    <Input
+                                        id="title"
+                                        value={title}
+                                        onChange={(event) => setTitle(event.target.value)}
+                                        placeholder="Form title"
+                                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label htmlFor="description" className="text-sm text-white/70">
+                                        Description
+                                    </label>
+                                    <Textarea
+                                        id="description"
+                                        value={description}
+                                        onChange={(event) => setDescription(event.target.value)}
+                                        placeholder="Optional description"
+                                        className="min-h-24 border-white/10 bg-white/5 text-white placeholder:text-white/30"
+                                    />
+                                </div>
+
+                                {error ? (
+                                    <p className="text-sm text-red-400">{error.message}</p>
+                                ) : null}
+
+                                <DialogFooter>
+                                    <Button
+                                        type="submit"
+                                        disabled={status === "pending" || title.trim().length === 0}
+                                        className="bg-white text-black hover:bg-white/90"
+                                    >
+                                        {status === "pending" ? "Creating..." : "Create"}
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        </DialogContent>
+                    </Dialog>
+                </div>
+
+                <section className="grid gap-3">
+                    {isLoading ? (
+                        <div className="border border-white/10 bg-white/5 p-6 text-sm text-white/50">
+                            Loading forms...
+                        </div>
+                    ) : forms && forms.length > 0 ? (
+                        forms.map((form) => (
+                            <article
+                                key={form.id}
+                                className="border border-white/10 bg-white/5 p-5"
+                            >
+                                <div className="flex items-start justify-between gap-4">
+                                    <div className="space-y-1">
+                                        <h2 className="text-base font-medium text-white">
+                                            {form.title}
+                                        </h2>
+                                        <p className="text-sm text-white/60">
+                                            {form.description || "No description"}
+                                        </p>
+                                        <span className="block text-xs text-white/35">
+                                            {form.createdAt
+                                                ? new Date(form.createdAt).toLocaleDateString()
+                                                : ""}
+                                        </span>
+                                    </div>
+
+                                    <div className="flex shrink-0 items-center gap-2">
+                                        <Button
+                                            asChild
+                                            variant="outline"
+                                            size="icon"
+                                            className="border-white/10 bg-white/5 text-white hover:bg-white/10"
+                                        >
+                                            <Link
+                                                href={`/form/${form.id}/submissions`}
+                                                aria-label="View submissions"
+                                            >
+                                                <Eye className="size-4" />
+                                            </Link>
+                                        </Button>
+
+                                        <Button
+                                            asChild
+                                            variant="outline"
+                                            size="icon"
+                                            className="border-white/10 bg-white/5 text-white hover:bg-white/10"
+                                        >
+                                            <Link
+                                                href={`/dashboard/form/${form.id}`}
+                                                aria-label="Edit form"
+                                            >
+                                                <PencilLine className="size-4" />
+                                            </Link>
+                                        </Button>
+                                    </div>
+                                </div>
+                            </article>
+                        ))
+                    ) : (
+                        <div className="border border-white/10 bg-white/5 p-6 text-sm text-white/60">
+                            No forms yet.
+                        </div>
+                    )}
+                </section>
+            </div>
+        </main>
+    );
 }

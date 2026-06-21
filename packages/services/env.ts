@@ -1,13 +1,13 @@
 import { z } from "zod";
 
 const envSchema = z.object({
-  JWT_SECRET: z.string().describe("Secret key used for signing and verifying JWT tokens"),
+    JWT_SECRET: z.string().describe("Secret key for JWT tokens"),
 });
 
 function createEnv(env: NodeJS.ProcessEnv) {
-  const safeParseResult = envSchema.safeParse(env);
-  if (!safeParseResult.success) throw new Error(safeParseResult.error.message);
-  return safeParseResult.data;
+    const safeParseResult = envSchema.safeParse(env);
+    if (!safeParseResult.success) throw new Error(safeParseResult.error.message);
+    return safeParseResult.data;
 }
 
 export const env = createEnv(process.env);

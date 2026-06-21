@@ -1,23 +1,22 @@
-import {z} from "zod"; 
+import { z } from "zod";
 
 export const createUserWithEmailAndPassword = z.object({
-  email: z.string().email().describe("The user's email address"),
-  password: z.string().min(8).describe("The user's password"),
-  fullName: z.string().min(1).describe("The user's full name"),
-
+    fullName: z.string().describe("Full name of the user"),
+    email: z.email().describe("Email of the user"),
+    password: z.string().describe("Password of the user"),
 });
 
 export type CreateUserWithEmailAndPasswordType = z.infer<typeof createUserWithEmailAndPassword>;
 
-export const generateUserPayloadToken = z.object({
-  id: z.string().uuid().describe("The user's unique identifier"),
+export const generateUserTokenPayload = z.object({
+    id: z.string().describe("ID of the user"),
 });
 
-export type GenerateUserPayloadTokenType = z.infer<typeof generateUserPayloadToken>;
+export type GenerateUserTokenPayloadType = z.infer<typeof generateUserTokenPayload>;
 
-export const signInWithEmailAndPassword = z.object({
-  email: z.string().email().describe("The user's email address"),
-  password: z.string().min(8).describe("The user's password"),
+export const signInUserWithEmailAndPassword = z.object({
+    email: z.email().describe("Email of the user"),
+    password: z.string().describe("Password of the user"),
 });
 
-export type SignInWithEmailAndPasswordType = z.infer<typeof signInWithEmailAndPassword>;
+export type SignInUserWithEmailAndPasswordType = z.infer<typeof signInUserWithEmailAndPassword>;

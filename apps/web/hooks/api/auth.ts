@@ -1,20 +1,21 @@
 import { trpc } from "~/trpc/client";
 
-export function useSignUp() {
+export function useSignup() {
     const utils = trpc.useUtils();
 
     const {
         mutateAsync: createUserWithEmailAndPasswordAsync,
         mutate: createUserWithEmailAndPassword,
         error,
+        failureCount,
         isError,
         isIdle,
         isSuccess,
         isPending,
         status,
     } = trpc.auth.createUserWithEmailAndPassword.useMutation({
-        onSuccess() {
-            utils.auth.getLoggedInUserInfo.invalidate();
+        onSuccess: async () => {
+            await utils.auth.getLoggedInUserInfo.invalidate();
         },
     });
 
@@ -22,28 +23,31 @@ export function useSignUp() {
         createUserWithEmailAndPasswordAsync,
         createUserWithEmailAndPassword,
         error,
+        failureCount,
         isError,
-        isSuccess,
         isIdle,
+        isSuccess,
         isPending,
         status,
     };
 }
 
-export function useSignIn() {
+export function useSignin() {
     const utils = trpc.useUtils();
+
     const {
         mutateAsync: signInUserWithEmailAndPasswordAsync,
         mutate: signInUserWithEmailAndPassword,
         error,
+        failureCount,
         isError,
         isIdle,
         isSuccess,
         isPending,
         status,
-    } = trpc.auth.createUserWithEmailAndPassword.useMutation({
-        onSuccess() {
-            utils.auth.getLoggedInUserInfo.invalidate();
+    } = trpc.auth.signInUserWithEmailAndPassword.useMutation({
+        onSuccess: async () => {
+            await utils.auth.getLoggedInUserInfo.invalidate();
         },
     });
 
@@ -51,6 +55,7 @@ export function useSignIn() {
         signInUserWithEmailAndPasswordAsync,
         signInUserWithEmailAndPassword,
         error,
+        failureCount,
         isError,
         isIdle,
         isSuccess,
@@ -63,20 +68,18 @@ export function useUser() {
     const {
         data: user,
         error,
-        isError,
-        isFetching,
         isFetched,
-        isPending,
+        isFetching,
+        isLoading,
         status,
     } = trpc.auth.getLoggedInUserInfo.useQuery();
 
     return {
         user,
         error,
-        isError,
-        isFetching,
         isFetched,
-        isPending,
+        isFetching,
+        isLoading,
         status,
     };
 }

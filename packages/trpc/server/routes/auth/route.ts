@@ -1,16 +1,16 @@
 import { authenticatedProcedure, publicProcedure, router } from "../../trpc";
 import {
-    createUserWithEmailAndPasswordInpuModel,
+    createUserWithEmailAndPasswordInputModel,
     createUserWithEmailAndPasswordOutputModel,
-    getLogggedInUserInfoInputModel,
-    getLogggedInUserInfoOutputModel,
     signInUserWithEmailAndPasswordInputModel,
     signInUserWithEmailAndPasswordOutputModel,
+    getLoggedInUserInfoInputModel,
+    getLoggedInUserInfoOutputModel,
 } from "./model";
 
 import { userService } from "../../services";
-import { generatePath } from "../../utils/path-generator";
 
+import { generatePath } from "../../utils/path-generator";
 const getPath = generatePath("/authentication");
 const TAGS = ["Authentication"];
 
@@ -23,10 +23,11 @@ export const authRouter = router({
                 tags: TAGS,
             },
         })
-        .input(createUserWithEmailAndPasswordInpuModel)
+        .input(createUserWithEmailAndPasswordInputModel)
         .output(createUserWithEmailAndPasswordOutputModel)
         .mutation(async ({ input, ctx }) => {
             const { fullName, email, password } = input;
+
             const { id, token } = await userService.createUserWithEmailAndPassword({
                 fullName,
                 email,
@@ -35,14 +36,15 @@ export const authRouter = router({
 
             ctx.setCookie("token", token, {
                 httpOnly: true,
-                secure: process.env.NODE_ENV === "production",
+                secure: false,
                 sameSite: "strict",
-                maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+                maxAge: 30 * 24 * 60 * 60 * 1000,
             });
 
-            return { id };
+            return {
+                id,
+            };
         }),
-
     signInUserWithEmailAndPassword: publicProcedure
         .meta({
             openapi: {
@@ -55,19 +57,23 @@ export const authRouter = router({
         .output(signInUserWithEmailAndPasswordOutputModel)
         .mutation(async ({ input, ctx }) => {
             const { email, password } = input;
-            const { id, token } = await userService.signInWithEmailAndPassword({
+
+            const { id, token } = await userService.signInUserWithEmailAndPassword({
                 email,
                 password,
             });
+
             ctx.setCookie("token", token, {
                 httpOnly: true,
-                secure: process.env.NODE_ENV === "production",
+                secure: false,
                 sameSite: "strict",
-                maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+                maxAge: 30 * 24 * 60 * 60 * 1000,
             });
-            return { id };
-        }),
 
+            return {
+                id,
+            };
+        }),
     getLoggedInUserInfo: authenticatedProcedure
         .meta({
             openapi: {
@@ -76,10 +82,15 @@ export const authRouter = router({
                 tags: TAGS,
             },
         })
-        .input(getLogggedInUserInfoInputModel)
-        .output(getLogggedInUserInfoOutputModel)
+        .input(getLoggedInUserInfoInputModel)
+        .output(getLoggedInUserInfoOutputModel)
         .query(async ({ ctx }) => {
-            const { email, fullName, id } = await userService.getUserInfoById(ctx.userId.id);
-            return { email, fullName, id };
+            const { id, fullName, email } = await userService.getUserInfoById(ctx.user.id);
+
+            return {
+                id,
+                fullName,
+                email,
+            };
         }),
 });

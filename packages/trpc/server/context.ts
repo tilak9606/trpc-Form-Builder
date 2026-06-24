@@ -1,40 +1,35 @@
-import type { CookieOptions } from "express";
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
-
-import {
-    setCookie as setCookieUtil,
-    getCookie as getCookieUtil,
-    clearCookie as clearCookieUtil,
-} from "./utils/cookie";
-
-export interface TRPCCtxUser {
-    id: string;
-}
+import { auth } from "@repo/services";
 
 export interface TRPCContext {
-    setCookie: (name: string, value: string, opts: CookieOptions) => void;
-    getCookie: (name: string) => string | undefined;
-    clearCookie: (name: string) => void;
-
-    user?: TRPCCtxUser;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+    image?: string | null;
+  };
+  session?: {
+    id: string;
+    expiresAt: Date;
+  };
+  respondentIp?: string;
 }
 
-export async function createContext({ req, res }: CreateExpressContextOptions) {
-    const ctx: TRPCContext = {
-        setCookie(name: string, value: string, opts: CookieOptions) {
-            return setCookieUtil(res, name, value, opts);
-        },
-        getCookie(name: string) {
-            return getCookieUtil(req, name);
-        },
-        clearCookie(name: string) {
-            return clearCookieUtil(res, name);
-        },
+export async function createContext({ req }: CreateExpressContextOptions) {
+  const headers = new Headers(req.headers as Record<string, string>);
+  const session = await auth.api.getSession({ headers });
 
-        user: undefined,
-    };
+  const respondentIp =
+    (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ||
+    req.socket?.remoteAddress ||
+    req.ip ||
+    "unknown";
 
-    return ctx;
+  return {
+    user: session?.user,
+    session: session?.session,
+    respondentIp,
+  } satisfies TRPCContext;
 }
 
 export type Context = Awaited<ReturnType<typeof createContext>>;

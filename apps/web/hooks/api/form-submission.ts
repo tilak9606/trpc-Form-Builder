@@ -43,3 +43,40 @@ export const useGetSubmissionsByFormId = (formId: string) => {
         status,
     };
 };
+
+export const useExportSubmissions = (formId: string) => {
+    const {
+        data: exportData,
+        refetch: exportSubmissions,
+        isFetching: isExporting,
+        error,
+    } = trpc.formSubmission.exportSubmissions.useQuery(
+        { formId },
+        { enabled: false },
+    );
+
+    return {
+        exportData,
+        exportSubmissions,
+        isExporting,
+        error,
+    };
+};
+
+export const useGetAnalytics = (formId: string) => {
+    const {
+        data: analytics,
+        error,
+        isFetching,
+        isLoading,
+        status,
+    } = trpc.formSubmission.getAnalytics.useQuery({ formId });
+
+    return {
+        analytics,
+        error,
+        isFetching,
+        isLoading,
+        status,
+    };
+};

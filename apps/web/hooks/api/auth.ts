@@ -1,85 +1,111 @@
-import { trpc } from "~/trpc/client";
+import { useState, useCallback } from "react";
+import { authClient } from "~/lib/auth-client";
 
-export function useSignup() {
-    const utils = trpc.useUtils();
+export const useSession = () => authClient.useSession();
 
-    const {
-        mutateAsync: createUserWithEmailAndPasswordAsync,
-        mutate: createUserWithEmailAndPassword,
-        error,
-        failureCount,
-        isError,
-        isIdle,
-        isSuccess,
-        isPending,
-        status,
-    } = trpc.auth.createUserWithEmailAndPassword.useMutation({
-        onSuccess: async () => {
-            await utils.auth.getLoggedInUserInfo.invalidate();
-        },
-    });
+export const signIn = authClient.signIn;
+export const signUp = authClient.signUp;
+export const signOut = authClient.signOut;
 
-    return {
-        createUserWithEmailAndPasswordAsync,
-        createUserWithEmailAndPassword,
-        error,
-        failureCount,
-        isError,
-        isIdle,
-        isSuccess,
-        isPending,
-        status,
-    };
+export function useVerifyEmail() {
+  const [isPending, setIsPending] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const verifyEmailAsync = useCallback(async ({ token }: { token: string }) => {
+    setIsPending(true);
+    setError(null);
+    setIsSuccess(false);
+    try {
+      const res = await authClient.verifyEmail({ query: { token } });
+      if (res.error) throw new Error(res.error.message || "Verification failed");
+      setIsSuccess(true);
+      return res;
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error("Verification failed"));
+      throw err;
+    } finally {
+      setIsPending(false);
+    }
+  }, []);
+
+  return { verifyEmailAsync, isPending, isSuccess, error };
 }
 
-export function useSignin() {
-    const utils = trpc.useUtils();
+export function useForgotPassword() {
+  const [isPending, setIsPending] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
-    const {
-        mutateAsync: signInUserWithEmailAndPasswordAsync,
-        mutate: signInUserWithEmailAndPassword,
-        error,
-        failureCount,
-        isError,
-        isIdle,
-        isSuccess,
-        isPending,
-        status,
-    } = trpc.auth.signInUserWithEmailAndPassword.useMutation({
-        onSuccess: async () => {
-            await utils.auth.getLoggedInUserInfo.invalidate();
-        },
-    });
+  const forgotPasswordAsync = useCallback(async ({ email }: { email: string }) => {
+    setIsPending(true);
+    setError(null);
+    setIsSuccess(false);
+    try {
+      const res = await authClient.requestPasswordReset({ email, redirectTo: window.location.origin + "/reset-password" });
+      if (res.error) throw new Error(res.error.message || "Failed to send reset link");
+      setIsSuccess(true);
+      return res;
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error("Failed to send reset link"));
+      throw err;
+    } finally {
+      setIsPending(false);
+    }
+  }, []);
 
-    return {
-        signInUserWithEmailAndPasswordAsync,
-        signInUserWithEmailAndPassword,
-        error,
-        failureCount,
-        isError,
-        isIdle,
-        isSuccess,
-        isPending,
-        status,
-    };
+  return { forgotPasswordAsync, isPending, isSuccess, error };
 }
 
-export function useUser() {
-    const {
-        data: user,
-        error,
-        isFetched,
-        isFetching,
-        isLoading,
-        status,
-    } = trpc.auth.getLoggedInUserInfo.useQuery();
+export function useGoogleAuth() {
+  const [isPending, setIsPending] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
-    return {
-        user,
-        error,
-        isFetched,
-        isFetching,
-        isLoading,
-        status,
-    };
+  const googleAuthAsync = useCallback(async ({ idToken }: { idToken: string }) => {
+    setIsPending(true);
+    setError(null);
+    setIsSuccess(false);
+    try {
+      const res = await authClient.signIn.social({ provider: "google", idToken: { token: idToken } });
+      if (res.error) throw new Error(res.error.message || "Google sign-in failed");
+      setIsSuccess(true);
+      return res;
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error("Google sign-in failed"));
+      throw err;
+    } finally {
+      setIsPending(false);
+    }
+  }, []);
+
+  return { googleAuthAsync, isPending, isSuccess, error };
+}
+
+export function useResetPassword() {
+  const [isPending, setIsPending] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const resetPasswordAsync = useCallback(
+    async ({ token, newPassword }: { token: string; newPassword: string }) => {
+      setIsPending(true);
+      setError(null);
+      setIsSuccess(false);
+      try {
+        const res = await authClient.resetPassword({ token, newPassword });
+        if (res.error) throw new Error(res.error.message || "Failed to reset password");
+        setIsSuccess(true);
+        return res;
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error("Failed to reset password"));
+        throw err;
+      } finally {
+        setIsPending(false);
+      }
+    },
+    [],
+  );
+
+  return { resetPasswordAsync, isPending, isSuccess, error };
 }

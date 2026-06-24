@@ -1,12 +1,17 @@
-import { pgTable, timestamp, uuid, varchar, text } from "drizzle-orm/pg-core";
+import { pgTable, timestamp, text, varchar, boolean } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const usersTable = pgTable("users", {
-    id: uuid("id").primaryKey().defaultRandom(),
+  id: text("id").primaryKey(),
 
-    fullName: varchar("full_name", { length: 100 }).notNull(),
-    email: varchar("email", { length: 255 }).notNull().unique(),
-    passwordHash: text("password_hash"),
+  name: varchar("name", { length: 100 }).notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("email_verified").notNull().default(false),
 
-    createdAt: timestamp("created_at").defaultNow(),
-    updatedAt: timestamp("updated_at").$onUpdate(() => new Date()),
+  image: text("image"),
+
+  role: varchar("role", { length: 10 }).default("USER").notNull(),
+
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().$onUpdate(() => sql`now()`),
 });

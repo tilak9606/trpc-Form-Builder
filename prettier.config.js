@@ -1,9 +1,8 @@
-module.exports = {
-  arrowParens: "always",
-  printWidth: 100,
-  singleQuote: false,
-  jsxSingleQuote: false,
+/** @type {import("prettier").Config} */
+export default {
   semi: true,
+  singleQuote: false,
+  tabWidth: 2,
   trailingComma: "all",
-  tabWidth: 4,
+  printWidth: 100,
 };

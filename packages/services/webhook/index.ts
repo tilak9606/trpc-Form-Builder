@@ -46,6 +46,7 @@ export default class WebhookService {
 
     public async getWebhooks(payload: GetWebhooksInputType) {
         const data = await getWebhooksInput.parseAsync(payload);
+        await this.verifyFormOwnership(data.formId, data.userId);
 
         const rows = await db
             .select()

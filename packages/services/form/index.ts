@@ -1,6 +1,7 @@
-import { db, eq, and, isNull } from "@repo/database";
+import { db, eq, and, isNull, count as drizzleCount } from "@repo/database";
 import { formsTable } from "@repo/database/models/form";
 import { formFieldsTable } from "@repo/database/models/form-field";
+import { formSubmissionsTable } from "@repo/database/models/form-submission";
 
 import {
     createFormInput,
@@ -80,7 +81,9 @@ export default class FormService {
         if (data.themeFontFamily !== undefined) updateData.themeFontFamily = data.themeFontFamily;
         if (data.themeBorderRadius !== undefined) updateData.themeBorderRadius = data.themeBorderRadius;
         if (data.themeButtonText !== undefined) updateData.themeButtonText = data.themeButtonText;
+        if (data.themeButtonTextColor !== undefined) updateData.themeButtonTextColor = data.themeButtonTextColor;
         if (data.themeLogoUrl !== undefined) updateData.themeLogoUrl = data.themeLogoUrl;
+        if (data.thankYouUrl !== undefined) updateData.thankYouUrl = data.thankYouUrl;
 
         const result = await db
             .update(formsTable)
@@ -141,9 +144,12 @@ export default class FormService {
                 folderId: formsTable.folderId,
                 createdAt: formsTable.createdAt,
                 updatedAt: formsTable.updatedAt,
+                submissionCount: drizzleCount(formSubmissionsTable.id),
             })
             .from(formsTable)
+            .leftJoin(formSubmissionsTable, eq(formSubmissionsTable.formId, formsTable.id))
             .where(and(...conditions))
+            .groupBy(formsTable.id, formsTable.createdAt)
             .orderBy(formsTable.createdAt);
         return forms;
     }
@@ -174,8 +180,13 @@ export default class FormService {
         return rows[0]!;
     }
 
-    public async getFormWithFields(formIdOrSlug: string) {
+    public async getFormWithFields(formIdOrSlug: string, options?: { onlyPublished?: boolean }) {
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(formIdOrSlug);
+
+        const conditions = [isUuid ? eq(formsTable.id, formIdOrSlug) : eq(formsTable.slug, formIdOrSlug)];
+        if (options?.onlyPublished) {
+            conditions.push(eq(formsTable.status, "PUBLISHED"));
+        }
 
         const rows = await db
             .select({
@@ -194,7 +205,9 @@ export default class FormService {
                 themeFontFamily: formsTable.themeFontFamily,
                 themeBorderRadius: formsTable.themeBorderRadius,
                 themeButtonText: formsTable.themeButtonText,
+                themeButtonTextColor: formsTable.themeButtonTextColor,
                 themeLogoUrl: formsTable.themeLogoUrl,
+                thankYouUrl: formsTable.thankYouUrl,
                 createdAt: formsTable.createdAt,
                 updatedAt: formsTable.updatedAt,
 
@@ -218,7 +231,7 @@ export default class FormService {
             })
             .from(formsTable)
             .leftJoin(formFieldsTable, eq(formFieldsTable.formId, formsTable.id))
-            .where(isUuid ? eq(formsTable.id, formIdOrSlug) : eq(formsTable.slug, formIdOrSlug))
+            .where(and(...conditions))
             .orderBy(formFieldsTable.index);
 
         if (!rows || rows.length === 0) throw new Error(`Form with ID ${formIdOrSlug} not found`);
@@ -241,7 +254,9 @@ export default class FormService {
             themeFontFamily: first.themeFontFamily ?? "Inter",
             themeBorderRadius: first.themeBorderRadius ?? "0.5rem",
             themeButtonText: first.themeButtonText ?? "Submit",
+            themeButtonTextColor: first.themeButtonTextColor ?? "#ffffff",
             themeLogoUrl: first.themeLogoUrl ?? null,
+            thankYouUrl: first.thankYouUrl ?? null,
             createdAt: first.createdAt ? first.createdAt.toISOString() : null,
             updatedAt: first.updatedAt ? first.updatedAt.toISOString() : null,
             fields: [],
@@ -274,8 +289,11 @@ export default class FormService {
         return form;
     }
 
-    public async exportForm(formIdOrSlug: string) {
+    public async exportForm(formIdOrSlug: string, userId?: string) {
         const form = await this.getFormWithFields(formIdOrSlug);
+        if (userId && form.createdBy !== userId) {
+            throw new Error("Access denied");
+        }
         const data = {
             title: form.title,
             description: form.description ?? undefined,
@@ -329,5 +347,43 @@ export default class FormService {
         }
 
         return form;
+    }
+
+    public async duplicateForm(formId: string, userId: string) {
+        const originalForm = await this.getFormWithFields(formId);
+        
+        if (!originalForm) {
+            throw new Error(`Form with ID ${formId} not found`);
+        }
+
+        const newForm = await this.createForm({
+            title: `Copy of ${originalForm.title}`,
+            description: originalForm.description ?? undefined,
+            createdBy: userId,
+            folderId: originalForm.folderId ?? undefined,
+        });
+
+        const { default: FormFieldService } = await import("../form-field/index");
+        const fieldSvc = new FormFieldService();
+
+        for (const field of originalForm.fields) {
+            await fieldSvc.createField({
+                label: field.label,
+                type: field.type as any,
+                formId: newForm.id,
+                userId: userId,
+                description: field.description,
+                placeholder: field.placeholder,
+                isRequired: field.isRequired,
+                options: field.options,
+                validation: field.validation as any,
+                condition: field.condition,
+                page: field.page,
+                maxFileSize: field.maxFileSize,
+                allowedFileTypes: field.allowedFileTypes,
+            });
+        }
+
+        return newForm;
     }
 }

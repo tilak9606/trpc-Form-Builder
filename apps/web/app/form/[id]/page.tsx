@@ -1,15 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useParams } from "next/navigation";
-import { Loader2, X, FileIcon } from "lucide-react";
+import { Loader2, X, FileIcon, Moon, Sun, Check } from "lucide-react";
 
 import { useGetFormWithFields } from "~/hooks/api/form";
-import { useCreateSubmission } from "~/hooks/api/form-submission";
+import { useCreateSubmission, useTrackEvent } from "~/hooks/api/form-submission";
 
-import { Input } from "~/components/ui/input";
-import { Textarea } from "~/components/ui/textarea";
-import { Button } from "~/components/ui/button";
 import { env } from "~/env";
 
 const apiBaseUrl = env.NEXT_PUBLIC_API_URL.replace(/\/trpc$/, "");
@@ -33,13 +30,40 @@ export default function PublicFormPage() {
     const params = useParams();
     const formId = params?.id as string | undefined;
 
-    const { form, isLoading } = useGetFormWithFields(formId ?? "");
-    const { createSubmissionAsync, status, error } = useCreateSubmission();
+    const { form, isLoading } = useGetFormWithFields(formId ?? "", "PUBLISHED");
+    const { createSubmissionAsync, status } = useCreateSubmission();
+    const { trackEventAsync } = useTrackEvent();
+
+    const hasTrackedStart = useRef(false);
 
     const [values, setValues] = useState<Record<string, string>>({});
     const [submitted, setSubmitted] = useState(false);
     const [uploadingFields, setUploadingFields] = useState<Record<string, boolean>>({});
     const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
+
+    const [pageTheme, setPageTheme] = useState<"light" | "dark">("dark");
+
+    useEffect(() => {
+        const stored = localStorage.getItem("fb-response-theme");
+        if (stored === "light" || stored === "dark") {
+            setPageTheme(stored);
+        } else if (window.matchMedia("(prefers-color-scheme: light)").matches) {
+            setPageTheme("light");
+        }
+    }, []);
+
+    // Track "view" event on form load
+    useEffect(() => {
+        if (formId && form) {
+            trackEventAsync({ formId, eventType: "view" }).catch(() => {});
+        }
+    }, [formId, form]);
+
+    const toggleTheme = () => {
+        const next = pageTheme === "dark" ? "light" : "dark";
+        setPageTheme(next);
+        localStorage.setItem("fb-response-theme", next);
+    };
 
     useEffect(() => {
         if (!form?.fields) return;
@@ -55,6 +79,10 @@ export default function PublicFormPage() {
 
     const handleChange = (fieldId: string, v: string) => {
         setValues((s) => ({ ...s, [fieldId]: v }));
+        if (!hasTrackedStart.current && formId) {
+            hasTrackedStart.current = true;
+            trackEventAsync({ formId, eventType: "start" }).catch(() => {});
+        }
     };
 
     const handleFileUpload = async (fieldId: string, file: File | null) => {
@@ -90,9 +118,12 @@ export default function PublicFormPage() {
         }
     };
 
+    const [submitError, setSubmitError] = useState<string | null>(null);
+
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         if (!form?.id) return;
+        setSubmitError(null);
 
         const payload = {
             formId: form.id,
@@ -101,22 +132,60 @@ export default function PublicFormPage() {
                 .map(([fieldId, value]) => ({ fieldId, value })),
         };
 
-        await createSubmissionAsync(payload);
-        setSubmitted(true);
-        setValues((s) => Object.fromEntries(Object.keys(s).map((k) => [k, ""])));
+        try {
+            await createSubmissionAsync(payload);
+            if (formId) {
+                trackEventAsync({ formId, eventType: "submit" }).catch(() => {});
+            }
+            if (form.thankYouUrl) {
+                window.location.href = form.thankYouUrl;
+            } else {
+                setSubmitted(true);
+            }
+            setValues((s) => Object.fromEntries(Object.keys(s).map((k) => [k, ""])));
+        } catch (err: any) {
+            setSubmitError(err?.message || "Something went wrong. Please try again.");
+        }
     };
 
-    if (isLoading) return <div className="p-6">Loading form...</div>;
-    if (!form) return <div className="p-6">Form not found.</div>;
-    if (form.status === "CLOSED") return <div className="p-6">This form is closed.</div>;
+    if (isLoading) {
+        return (
+            <div className={`min-h-screen flex items-center justify-center ${pageTheme === "dark" ? "bg-[#0F1117]" : "bg-[#F0EDE8]"}`}>
+                <Loader2 className="w-6 h-6 animate-spin text-[#6C7CF5]" />
+            </div>
+        );
+    }
 
-    const themeBg = form.themeBackgroundColor || "#000000";
-    const themeText = form.themeTextColor || "#ffffff";
-    const themeLabel = form.themeLabelColor || "#ffffff";
-    const themePrimary = form.themePrimaryColor || "#3b82f6";
+    if (!form) {
+        return (
+            <div className={`min-h-screen flex items-center justify-center ${pageTheme === "dark" ? "bg-[#0F1117] text-[#F9FAFB]" : "bg-[#F0EDE8] text-[#111827]"}`}>
+                <p className="text-sm opacity-60">Form not found.</p>
+            </div>
+        );
+    }
+
+    if (form.status === "CLOSED") {
+        return (
+            <div className={`min-h-screen flex items-center justify-center ${pageTheme === "dark" ? "bg-[#0F1117] text-[#F9FAFB]" : "bg-[#F0EDE8] text-[#111827]"}`}>
+                <p className="text-sm opacity-60">This form is closed.</p>
+            </div>
+        );
+    }
+
+    const isDark = pageTheme === "dark";
+
+    const themeBg = isDark ? (form.themeBackgroundColor || "#0F1117") : "#F0EDE8";
+    const themeSurface = isDark ? "#1A1D27" : "#FAF8F5";
+    const themeText = isDark ? (form.themeTextColor || "#F9FAFB") : "#111827";
+    const themeLabel = isDark ? (form.themeLabelColor || "#F9FAFB") : "#111827";
+    const themePrimary = form.themePrimaryColor || "#6C7CF5";
     const themeFont = form.themeFontFamily || "Inter";
-    const themeRadius = form.themeBorderRadius || "0.5rem";
+    const themeRadius = form.themeBorderRadius || "10px";
     const themeBtnText = form.themeButtonText || "Submit";
+    const themeBtnTextColor = form.themeButtonTextColor || "#ffffff";
+    const themeBorder = isDark ? "#2D3148" : "#E5E7EB";
+    const themeMuted = isDark ? "#9CA3AF" : "#6B7280";
+    const themeSurfaceHover = isDark ? "#2D3148" : "#E5E7EB";
 
     return (
         <main
@@ -124,77 +193,108 @@ export default function PublicFormPage() {
             style={{ backgroundColor: themeBg, color: themeText, fontFamily: themeFont }}
         >
             <div className="mx-auto max-w-2xl">
-                {form.themeLogoUrl ? (
-                    <img src={form.themeLogoUrl} alt="Logo" className="h-10 object-contain mb-4" />
-                ) : null}
-                <h1 className="text-2xl font-semibold mb-2">{form.title}</h1>
-                {form.description ? (
-                    <p className="mb-6" style={{ color: themeText, opacity: 0.6 }}>{form.description}</p>
-                ) : null}
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex-1">
+                        {form.themeLogoUrl ? (
+                            <img src={form.themeLogoUrl} alt="Logo" className="h-10 object-contain mb-4" />
+                        ) : null}
+                        <h1 className="text-2xl font-semibold mb-1">{form.title}</h1>
+                        {form.description ? (
+                            <p className="text-sm" style={{ color: themeMuted }}>{form.description}</p>
+                        ) : null}
+                    </div>
+                    <button
+                        onClick={toggleTheme}
+                        className="flex items-center justify-center w-10 h-10 rounded-full transition-colors shrink-0 ml-4 border"
+                        style={{
+                            backgroundColor: themeSurface,
+                            color: themeText,
+                            borderColor: themeBorder,
+                        }}
+                        aria-label="Toggle theme"
+                    >
+                        {isDark ? <Sun className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
+                    </button>
+                </div>
 
                 {submitted ? (
                     <div
-                        className="mb-6 rounded-md p-4"
-                        style={{ backgroundColor: `${themePrimary}15`, color: themeText }}
+                        className="mb-6 rounded-xl p-4 flex items-center gap-3"
+                        style={{ backgroundColor: `${themePrimary}15`, color: themeText, borderRadius: themeRadius }}
                     >
-                        Thanks &mdash; your submission was received.
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: themePrimary }}>
+                            <Check className="w-4 h-4 text-white" />
+                        </div>
+                        <p className="text-sm font-medium">Thanks — your submission was received.</p>
                     </div>
                 ) : null}
 
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleSubmit} className="space-y-5">
                     {form.fields.map((f: any) => {
                         const visible = evaluateCondition(f.condition, values);
                         return (
                             <div
                                 key={f.id}
-                                className={`transition-all duration-300 ${visible ? "opacity-100 max-h-96" : "opacity-0 max-h-0 overflow-hidden pointer-events-none"}`}
+                                className={`transition-all duration-200 ${visible ? "opacity-100 max-h-[500px]" : "opacity-0 max-h-0 overflow-hidden pointer-events-none"}`}
                             >
-                                <div className="space-y-1">
-                                    <label className="block text-sm" style={{ color: themeLabel }}>
+                                <div className="space-y-1.5">
+                                    <label className="block text-sm font-medium" style={{ color: themeLabel }}>
                                         {f.label}
                                         {f.isRequired ? <span className="ml-1" style={{ color: themePrimary }}>*</span> : null}
                                     </label>
 
                                     {f.type === "TEXT" && (
-                                        <Input
+                                        <input
+                                            type="text"
                                             value={values[f.id] ?? ""}
                                             onChange={(e) => handleChange(f.id, e.target.value)}
                                             placeholder={f.placeholder ?? ""}
+                                            className="w-full px-3 py-2.5 text-sm outline-none transition-colors"
+                                            style={{ backgroundColor: themeSurface, color: themeText, border: `1.5px solid ${themeBorder}`, borderRadius: themeRadius }}
                                         />
                                     )}
 
                                     {f.type === "NUMBER" && (
-                                        <Input
+                                        <input
                                             type="number"
                                             value={values[f.id] ?? ""}
                                             onChange={(e) => handleChange(f.id, e.target.value)}
                                             placeholder={f.placeholder ?? ""}
+                                            className="w-full px-3 py-2.5 text-sm outline-none transition-colors"
+                                            style={{ backgroundColor: themeSurface, color: themeText, border: `1.5px solid ${themeBorder}`, borderRadius: themeRadius }}
                                         />
                                     )}
 
                                     {f.type === "EMAIL" && (
-                                        <Input
+                                        <input
                                             type="email"
                                             value={values[f.id] ?? ""}
                                             onChange={(e) => handleChange(f.id, e.target.value)}
                                             placeholder={f.placeholder ?? ""}
+                                            className="w-full px-3 py-2.5 text-sm outline-none transition-colors"
+                                            style={{ backgroundColor: themeSurface, color: themeText, border: `1.5px solid ${themeBorder}`, borderRadius: themeRadius }}
                                         />
                                     )}
 
                                     {f.type === "PASSWORD" && (
-                                        <Input
+                                        <input
                                             type="password"
                                             value={values[f.id] ?? ""}
                                             onChange={(e) => handleChange(f.id, e.target.value)}
                                             placeholder={f.placeholder ?? ""}
+                                            className="w-full px-3 py-2.5 text-sm outline-none transition-colors"
+                                            style={{ backgroundColor: themeSurface, color: themeText, border: `1.5px solid ${themeBorder}`, borderRadius: themeRadius }}
                                         />
                                     )}
 
                                     {f.type === "TEXTAREA" && (
-                                        <Textarea
+                                        <textarea
                                             value={values[f.id] ?? ""}
                                             onChange={(e) => handleChange(f.id, e.target.value)}
                                             placeholder={f.placeholder ?? ""}
+                                            rows={4}
+                                            className="w-full px-3 py-2.5 text-sm outline-none transition-colors resize-none"
+                                            style={{ backgroundColor: themeSurface, color: themeText, border: `1.5px solid ${themeBorder}`, borderRadius: themeRadius }}
                                         />
                                     )}
 
@@ -202,21 +302,21 @@ export default function PublicFormPage() {
                                         <select
                                             value={values[f.id] ?? ""}
                                             onChange={(e) => handleChange(f.id, e.target.value)}
-                                                    className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm"
-                                                    style={{ color: themeText, borderRadius: themeRadius }}
-                                                >
-                                                    <option value="">Select...</option>
-                                                    <option value="true">Yes</option>
-                                                    <option value="false">No</option>
-                                                </select>
+                                            className="w-full px-3 py-2.5 text-sm outline-none transition-colors appearance-none cursor-pointer"
+                                            style={{ backgroundColor: themeSurface, color: themeText || themeMuted, border: `1.5px solid ${themeBorder}`, borderRadius: themeRadius }}
+                                        >
+                                            <option value="">Select...</option>
+                                            <option value="true">Yes</option>
+                                            <option value="false">No</option>
+                                        </select>
                                     )}
 
                                     {f.type === "SELECT" && (
                                         <select
                                             value={values[f.id] ?? ""}
                                             onChange={(e) => handleChange(f.id, e.target.value)}
-                                            className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm"
-                                            style={{ color: themeText, borderRadius: themeRadius }}
+                                            className="w-full px-3 py-2.5 text-sm outline-none transition-colors appearance-none cursor-pointer"
+                                            style={{ backgroundColor: themeSurface, color: themeText || themeMuted, border: `1.5px solid ${themeBorder}`, borderRadius: themeRadius }}
                                         >
                                             <option value="">{f.placeholder || "Select..."}</option>
                                             {(f.options || []).map((opt: string) => (
@@ -227,58 +327,74 @@ export default function PublicFormPage() {
 
                                     {f.type === "MULTI_SELECT" && (
                                         <div className="space-y-2">
-                                            {(f.options || []).map((opt: string) => (
-                                                <label key={opt} className="flex items-center gap-2 text-sm" style={{ color: themeLabel }}>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={(values[f.id] ?? "").split(",").includes(opt)}
-                                                        onChange={(e) => {
-                                                            const current = (values[f.id] ?? "").split(",").filter(Boolean);
-                                                            const next = e.target.checked
-                                                                ? [...current, opt]
-                                                                : current.filter((x) => x !== opt);
-                                                            handleChange(f.id, next.join(","));
+                                            {(f.options || []).map((opt: string) => {
+                                                const checked = (values[f.id] ?? "").split(",").includes(opt);
+                                                return (
+                                                    <label
+                                                        key={opt}
+                                                        className="flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors"
+                                                        style={{
+                                                            backgroundColor: checked ? `${themePrimary}12` : themeSurface,
+                                                            border: `1.5px solid ${checked ? themePrimary : themeBorder}`,
+                                                            borderRadius: themeRadius,
+                                                            color: themeLabel,
                                                         }}
-                                                        className="rounded border-border"
-                                                    />
-                                                    {opt}
-                                                </label>
-                                            ))}
+                                                    >
+                                                        <div
+                                                            className="w-4 h-4 rounded flex items-center justify-center shrink-0 transition-colors"
+                                                            style={{
+                                                                backgroundColor: checked ? themePrimary : "transparent",
+                                                                border: checked ? "none" : `1.5px solid ${themeBorder}`,
+                                                            }}
+                                                        >
+                                                            {checked && <Check className="w-3 h-3 text-white" />}
+                                                        </div>
+                                                        <span className="text-sm">{opt}</span>
+                                                    </label>
+                                                );
+                                            })}
                                         </div>
                                     )}
 
                                     {f.type === "DATE" && (
-                                        <Input
+                                        <input
                                             type="date"
                                             value={values[f.id] ?? ""}
                                             onChange={(e) => handleChange(f.id, e.target.value)}
+                                            className="w-full px-3 py-2.5 text-sm outline-none transition-colors"
+                                            style={{ backgroundColor: themeSurface, color: themeText, border: `1.5px solid ${themeBorder}`, borderRadius: themeRadius }}
                                         />
                                     )}
 
                                     {f.type === "FILE_UPLOAD" && (
                                         <div className="space-y-2">
                                             {values[f.id] ? (
-                                                <div className="flex items-center gap-2 rounded-md border border-border bg-white/5 p-3">
-                                                    <FileIcon className="h-4 w-4 text-white/60 shrink-0" />
+                                                <div
+                                                    className="flex items-center gap-2 p-3"
+                                                    style={{ backgroundColor: themeSurface, border: `1.5px solid ${themeBorder}`, borderRadius: themeRadius }}
+                                                >
+                                                    <FileIcon className="w-4 h-4 shrink-0" style={{ color: themeMuted }} />
                                                     <a
                                                         href={values[f.id] ?? "#"}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="text-sm text-blue-400 hover:underline truncate flex-1"
+                                                        className="text-sm hover:underline truncate flex-1"
+                                                        style={{ color: themePrimary }}
                                                     >
                                                         {(values[f.id] ?? "").split("/").pop() || "Uploaded file"}
                                                     </a>
                                                     <button
                                                         type="button"
                                                         onClick={() => handleFileUpload(f.id, null)}
-                                                        className="text-white/40 hover:text-white transition-colors"
+                                                        className="transition-colors"
+                                                        style={{ color: themeMuted }}
                                                     >
-                                                        <X className="h-4 w-4" />
+                                                        <X className="w-4 h-4" />
                                                     </button>
                                                 </div>
                                             ) : (
                                                 <div className="relative">
-                                                    <Input
+                                                    <input
                                                         type="file"
                                                         disabled={uploadingFields[f.id]}
                                                         onChange={(e) => {
@@ -290,10 +406,22 @@ export default function PublicFormPage() {
                                                                 ? f.allowedFileTypes.join(",")
                                                                 : "image/*,.pdf,.doc,.docx,.csv,.zip"
                                                         }
+                                                        className="w-full px-3 py-2.5 text-sm file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:cursor-pointer"
+                                                        style={{
+                                                            backgroundColor: themeSurface,
+                                                            color: themeText,
+                                                            border: `1.5px solid ${themeBorder}`,
+                                                            borderRadius: themeRadius,
+                                                            // @ts-ignore
+                                                            "--file-bg": themePrimary,
+                                                        }}
                                                     />
                                                     {uploadingFields[f.id] && (
-                                                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-md">
-                                                            <Loader2 className="h-5 w-5 animate-spin text-white" />
+                                                        <div
+                                                            className="absolute inset-0 flex items-center justify-center rounded-lg"
+                                                            style={{ backgroundColor: `${themeBg}99`, borderRadius: themeRadius }}
+                                                        >
+                                                            <Loader2 className="w-5 h-5 animate-spin" style={{ color: themePrimary }} />
                                                         </div>
                                                     )}
                                                 </div>
@@ -302,7 +430,7 @@ export default function PublicFormPage() {
                                                 <p className="text-xs" style={{ color: themePrimary }}>{uploadErrors[f.id]}</p>
                                             )}
                                             {f.maxFileSize ? (
-                                                <p className="text-xs" style={{ color: themeText, opacity: 0.4 }}>
+                                                <p className="text-xs" style={{ color: themeMuted }}>
                                                     Max size: {(f.maxFileSize / 1024 / 1024).toFixed(1)} MB
                                                 </p>
                                             ) : null}
@@ -310,23 +438,32 @@ export default function PublicFormPage() {
                                     )}
 
                                     {f.description ? (
-                                        <div className="text-sm" style={{ color: themeText, opacity: 0.6 }}>{f.description}</div>
+                                        <p className="text-xs" style={{ color: themeMuted }}>{f.description}</p>
                                     ) : null}
                                 </div>
                             </div>
                         );
                     })}
 
-                    {error ? <div className="text-sm" style={{ color: themePrimary }}>{error.message}</div> : null}
+                    {submitError ? (
+                        <p className="text-sm" style={{ color: themePrimary }}>{submitError}</p>
+                    ) : null}
 
-                    <div>
-                        <Button
+                    <div className="pt-2">
+                        <button
                             type="submit"
                             disabled={status === "pending"}
-                            style={{ backgroundColor: themePrimary, color: "#ffffff", borderRadius: themeRadius }}
+                            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium transition-all hover:opacity-90 disabled:opacity-50"
+                            style={{
+                                backgroundColor: themePrimary,
+                                color: themeBtnTextColor,
+                                borderRadius: themeRadius,
+                                boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+                            }}
                         >
+                            {status === "pending" && <Loader2 className="w-4 h-4 animate-spin" />}
                             {status === "pending" ? "Submitting..." : themeBtnText}
-                        </Button>
+                        </button>
                     </div>
                 </form>
             </div>

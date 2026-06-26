@@ -36,8 +36,8 @@ export const webhookRouter = router({
         .meta({ openapi: { method: "GET", path: getPath("/listWebhooks"), tags: TAGS, protect: true } })
         .input(listWebhooksInputModel)
         .output(listWebhooksOutputModel)
-        .query(async ({ input }) => {
-            const result = await webhookService.getWebhooks({ formId: input.formId });
+        .query(async ({ input, ctx }) => {
+            const result = await webhookService.getWebhooks({ formId: input.formId, userId: ctx.user.id });
             return result;
         }),
     updateWebhook: authenticatedProcedure

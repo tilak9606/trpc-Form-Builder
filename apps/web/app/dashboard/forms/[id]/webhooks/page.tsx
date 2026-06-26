@@ -5,11 +5,13 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Plus, Pencil, Trash2, Webhook } from "lucide-react";
 import { useGetWebhooks, useCreateWebhook, useUpdateWebhook, useDeleteWebhook } from "~/hooks/api/webhook";
+import { ProGate } from "~/components/pro-gate";
 import {
     Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
+import { EmptyState } from "~/components/ui/empty-state";
 
 export default function WebhooksPage() {
     const params = useParams();
@@ -54,6 +56,7 @@ export default function WebhooksPage() {
     };
 
     return (
+        <ProGate feature="Webhooks" description="Send form submission data to external services with webhooks.">
         <div className="p-8">
             <div className="flex items-center gap-4 mb-8">
                 <Link
@@ -63,7 +66,7 @@ export default function WebhooksPage() {
                     <ArrowLeft className="h-5 w-5" />
                 </Link>
                 <div className="flex-1">
-                    <h1 className="text-2xl font-semibold">Webhooks</h1>
+                    <h1 className="text-2xl font-semibold text-foreground">Webhooks</h1>
                     <p className="text-sm text-muted-foreground">
                         Send form submission data to external URLs
                     </p>
@@ -78,21 +81,22 @@ export default function WebhooksPage() {
             </div>
 
             {isLoading ? (
-                <div className="p-6">Loading...</div>
+                <div className="p-6 text-muted-foreground">Loading...</div>
             ) : !webhooks?.length ? (
-                <div className="rounded-2xl border border-dashed border-border bg-card/50 p-12 text-center">
-                    <Webhook className="h-8 w-8 mx-auto mb-3 text-muted-foreground" />
-                    <p className="text-muted-foreground">No webhooks configured.</p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                        Add a webhook to receive submission data via POST requests
-                    </p>
-                </div>
+                <EmptyState
+                    icon="inbox"
+                    title="No webhooks configured"
+                    description="Add a webhook to receive submission data via POST requests"
+                />
             ) : (
                 <div className="space-y-3">
                     {webhooks.map((hook) => (
-                        <div key={hook.id} className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4">
+                        <div key={hook.id} className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 hover:shadow-sm transition-shadow">
+                            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                                <Webhook className="h-5 w-5 text-primary" />
+                            </div>
                             <div className="flex-1 min-w-0">
-                                <p className="font-medium text-sm">{hook.name}</p>
+                                <p className="font-medium text-sm text-foreground">{hook.name}</p>
                                 <p className="text-xs text-muted-foreground truncate">{hook.url}</p>
                                 <p className="text-[10px] text-muted-foreground mt-1">
                                     {hook.enabled ? "Active" : "Disabled"} &middot; Event: submission.created
@@ -118,10 +122,10 @@ export default function WebhooksPage() {
             )}
 
             <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent className="border-border bg-card text-card-foreground sm:max-w-md">
+                <DialogContent className="border-border sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>{editing ? "Edit webhook" : "Add webhook"}</DialogTitle>
-                        <DialogDescription className="text-muted-foreground">
+                        <DialogDescription>
                             Webhooks POST submission data to your URL when a new submission is received.
                         </DialogDescription>
                     </DialogHeader>
@@ -144,5 +148,6 @@ export default function WebhooksPage() {
                 </DialogContent>
             </Dialog>
         </div>
+        </ProGate>
     );
 }

@@ -35,3 +35,39 @@ export const getAnalyticsInput = z.object({
 });
 
 export type GetAnalyticsInputType = z.infer<typeof getAnalyticsInput>;
+
+export const deleteSubmissionInput = z.object({
+    submissionId: z.string().describe("UUID of the submission"),
+    formId: z.string().describe("UUID of the form"),
+    userId: z.string().describe("ID of the user deleting the submission"),
+});
+
+export type DeleteSubmissionInputType = z.infer<typeof deleteSubmissionInput>;
+
+export const getSubmissionsByFormIdInput = z.object({
+    formId: z.string().describe("UUID of the form"),
+    userId: z.string().describe("ID of the user"),
+    page: z.number().min(1).default(1).optional(),
+    limit: z.number().min(1).max(100).default(20).optional(),
+    search: z.string().optional(),
+});
+
+export type GetSubmissionsByFormIdInputType = z.infer<typeof getSubmissionsByFormIdInput>;
+
+export const getSubmissionByIdInput = z.object({
+    submissionId: z.string().describe("UUID of the submission"),
+    formId: z.string().describe("UUID of the form"),
+    userId: z.string().describe("ID of the user"),
+});
+
+export type GetSubmissionByIdInputType = z.infer<typeof getSubmissionByIdInput>;
+
+export const trackEventInput = z.object({
+    formId: z.string().describe("UUID of the form"),
+    eventType: z.enum(["view", "start", "submit"]).describe("Type of analytics event"),
+    sessionId: z.string().optional(),
+    deviceFingerprint: z.string().optional(),
+    respondentIp: z.string().optional(),
+});
+
+export type TrackEventInputType = z.infer<typeof trackEventInput>;

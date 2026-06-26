@@ -9,7 +9,8 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default:
+          "bg-primary text-primary-foreground hover:bg-primary/90 active:scale-[0.98]",
         destructive:
           "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
         outline:
@@ -19,6 +20,11 @@ const buttonVariants = cva(
         ghost:
           "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
+        forest:
+          "bg-foreground text-background rounded-full px-6 hover:bg-foreground/85 active:scale-[0.97] transition-all duration-200 shadow-[0_2px_8px_rgba(0,0,0,0.12)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.16)]",
+        chip: "rounded-full border border-border bg-card hover:bg-secondary text-foreground font-medium",
+        "link-soft":
+          "text-foreground underline decoration-foreground/30 decoration-1 underline-offset-4 hover:decoration-foreground/60",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
@@ -27,12 +33,13 @@ const buttonVariants = cva(
         icon: "size-9",
         "icon-sm": "size-8",
         "icon-lg": "size-10",
+        chip: "h-9 px-4",
       },
-    },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
-    },
+      defaultVariants: {
+        variant: "default",
+        size: "default",
+      },
+    }
   }
 )
 

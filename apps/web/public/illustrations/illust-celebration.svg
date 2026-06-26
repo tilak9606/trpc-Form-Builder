@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <rect width="200" height="200" rx="24" fill="currentColor" opacity="0.08"/>
+  <circle cx="100" cy="90" r="30" stroke="currentColor" stroke-width="2" opacity="0.25"/>
+  <path d="M88 88c0-3 2-6 5-6s5 3 5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.3"/>
+  <circle cx="93" cy="86" r="2" fill="currentColor" opacity="0.3"/>
+  <circle cx="107" cy="86" r="2" fill="currentColor" opacity="0.3"/>
+  <path d="M92 96c3 4 13 4 16 0" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.3"/>
+  <path d="M70 60l8 12M130 60l-8 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.2"/>
+  <path d="M75 50l5 8M125 50l-5 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.15"/>
+  <circle cx="60" cy="130" r="4" fill="currentColor" opacity="0.12"/>
+  <circle cx="140" cy="130" r="4" fill="currentColor" opacity="0.12"/>
+  <circle cx="100" cy="140" r="3" fill="currentColor" opacity="0.1"/>
+</svg>

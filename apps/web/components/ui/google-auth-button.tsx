@@ -35,10 +35,13 @@ export function GoogleAuthButton() {
   }, [googleAuthAsync, router]);
 
   useEffect(() => {
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    if (!clientId) return;
+
     if (window.google) {
       setScriptLoaded(true);
       window.google.accounts.id.initialize({
-        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
+        client_id: clientId,
         callback: handleCredential,
       });
       return;
@@ -51,7 +54,7 @@ export function GoogleAuthButton() {
     script.onload = () => {
       setScriptLoaded(true);
       window.google?.accounts.id.initialize({
-        client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
+        client_id: clientId,
         callback: handleCredential,
       });
     };

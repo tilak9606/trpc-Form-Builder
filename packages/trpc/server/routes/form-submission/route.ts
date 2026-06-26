@@ -7,16 +7,41 @@ import {
     createSubmissionOutputModel,
     getSubmissionsByFormIdInputModel,
     getSubmissionsByFormIdOutputModel,
+    getSubmissionByIdInputModel,
+    getSubmissionByIdOutputModel,
     exportSubmissionsInputModel,
     exportSubmissionsOutputModel,
     getAnalyticsInputModel,
     getAnalyticsOutputModel,
+    trackEventInputModel,
+    trackEventOutputModel,
+    deleteSubmissionInputModel,
+    deleteSubmissionOutputModel,
 } from "./model";
 
 const TAGS = ["FormSubmission"];
 const getPath = generatePath("/form-submission");
 
 export const formSubmissionRouter = router({
+    deleteSubmission: authenticatedProcedure
+        .meta({
+            openapi: {
+                method: "DELETE",
+                path: getPath("/deleteSubmission"),
+                tags: TAGS,
+                protect: true,
+            },
+        })
+        .input(deleteSubmissionInputModel)
+        .output(deleteSubmissionOutputModel)
+        .mutation(async ({ input, ctx }) => {
+            const result = await formSubmissionService.deleteSubmission(
+                input.submissionId,
+                input.formId,
+                ctx.user.id
+            );
+            return result;
+        }),
     createSubmission: publicProcedure
         .meta({ openapi: { method: "POST", path: getPath("/createSubmission"), tags: TAGS } })
         .input(createSubmissionInputModel)
@@ -40,8 +65,43 @@ export const formSubmissionRouter = router({
         .input(getSubmissionsByFormIdInputModel)
         .output(getSubmissionsByFormIdOutputModel)
         .query(async ({ input, ctx }) => {
-            const { formId } = input;
-            const result = await formSubmissionService.getSubmissionsByFormId(formId, ctx.user.id);
+            const result = await formSubmissionService.getSubmissionsByFormId({
+                formId: input.formId,
+                userId: ctx.user.id,
+                page: input.page,
+                limit: input.limit,
+                search: input.search,
+            });
+            return result;
+        }),
+    getSubmissionById: authenticatedProcedure
+        .meta({
+            openapi: {
+                method: "GET",
+                path: getPath("/getSubmissionById"),
+                tags: TAGS,
+                protect: true,
+            },
+        })
+        .input(getSubmissionByIdInputModel)
+        .output(getSubmissionByIdOutputModel)
+        .query(async ({ input, ctx }) => {
+            const result = await formSubmissionService.getSubmissionById({
+                submissionId: input.submissionId,
+                formId: input.formId,
+                userId: ctx.user.id,
+            });
+            return result;
+        }),
+    trackEvent: publicProcedure
+        .meta({ openapi: { method: "POST", path: getPath("/trackEvent"), tags: TAGS } })
+        .input(trackEventInputModel)
+        .output(trackEventOutputModel)
+        .mutation(async ({ input, ctx }) => {
+            const result = await formSubmissionService.trackEvent({
+                ...input,
+                respondentIp: ctx.respondentIp,
+            });
             return result;
         }),
     exportSubmissions: authenticatedProcedure

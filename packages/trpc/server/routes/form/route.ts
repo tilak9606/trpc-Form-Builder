@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { authenticatedProcedure, publicProcedure, router } from "../../trpc";
 import { generatePath } from "../../utils/path-generator";
 import { formService } from "@repo/services";
+import UserService from "@repo/services/user";
 
 import {
     createFormInputModel,
@@ -22,12 +23,30 @@ import {
     exportFormOutputModel,
     importFormInputModel,
     importFormOutputModel,
+    duplicateFormInputModel,
+    duplicateFormOutputModel,
 } from "./model";
 
 const TAGS = ["Form"];
 const getPath = generatePath("/form");
 
 export const formRouter = router({
+    duplicateForm: authenticatedProcedure
+        .meta({
+            openapi: {
+                method: "POST",
+                path: getPath("/duplicateForm"),
+                tags: TAGS,
+                protect: true,
+            },
+        })
+        .input(duplicateFormInputModel)
+        .output(duplicateFormOutputModel)
+        .mutation(async ({ input, ctx }) => {
+            const { formId } = input;
+            const result = await formService.duplicateForm(formId, ctx.user.id);
+            return { id: result.id, slug: result.slug };
+        }),
     createForm: authenticatedProcedure
         .meta({
             openapi: {
@@ -41,6 +60,15 @@ export const formRouter = router({
         .output(createFormOutputModel)
         .mutation(async ({ input, ctx }) => {
             const { title, description, folderId } = input;
+
+            const userService = new UserService();
+            const plan = await userService.getUserPlan(ctx.user.id);
+            if (plan.formLimit !== -1 && plan.formCount >= plan.formLimit) {
+                throw new TRPCError({
+                    code: "FORBIDDEN",
+                    message: `You've reached the ${plan.plan} plan limit of ${plan.formLimit} forms. Please upgrade your plan.`,
+                });
+            }
 
             const result = await formService.createForm({
                 title,
@@ -77,8 +105,8 @@ export const formRouter = router({
         .input(getFormInputModel)
         .output(getFormOutputModel)
         .query(async ({ input }) => {
-            const { formId } = input;
-            const form = await formService.getFormWithFields(formId);
+            const { formId, status } = input;
+            const form = await formService.getFormWithFields(formId, { onlyPublished: status === "PUBLISHED" });
             return form;
         }),
     getFormBySlug: publicProcedure
@@ -140,8 +168,8 @@ export const formRouter = router({
         })
         .input(exportFormInputModel)
         .output(exportFormOutputModel)
-        .mutation(async ({ input }) => {
-            const result = await formService.exportForm(input.formId);
+        .mutation(async ({ input, ctx }) => {
+            const result = await formService.exportForm(input.formId, ctx.user.id);
             return result;
         }),
 

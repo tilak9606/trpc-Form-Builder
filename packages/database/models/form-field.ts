@@ -20,6 +20,12 @@ export const fieldTypeEnum = pgEnum("field_type_enum", [
     "SELECT",
     "MULTI_SELECT",
     "DATE",
+    "TIME",
+    "RATING",
+    "TAGS",
+    "TOGGLE",
+    "RADIO",
+    "CHECKBOX",
     "TEXTAREA",
     "FILE_UPLOAD",
 ]);
@@ -46,6 +52,7 @@ export const formFieldsTable = pgTable("form_fields", {
         min?: number;
         max?: number;
         pattern?: string;
+        icon?: string;
     } | null>(),
     page: numeric("page").default("1").notNull(),
 

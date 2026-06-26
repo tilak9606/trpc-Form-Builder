@@ -1,4 +1,4 @@
-import { db, eq, sql } from "@repo/database";
+import { db, eq, and } from "@repo/database";
 import { formTemplatesTable } from "@repo/database/models/form-template";
 import FormService from "../form/index";
 import FormFieldService from "../form-field/index";
@@ -58,9 +58,13 @@ export default class FormTemplateService {
     public async deleteTemplate(payload: DeleteTemplateInputType) {
         const data = await deleteTemplateInput.parseAsync(payload);
 
-        await db
+        const result = await db
             .delete(formTemplatesTable)
-            .where(eq(formTemplatesTable.id, data.id));
+            .where(and(eq(formTemplatesTable.id, data.id), eq(formTemplatesTable.createdBy, data.userId)))
+            .returning({ id: formTemplatesTable.id });
+
+        if (!result || result.length === 0)
+            throw new Error("Template not found or access denied");
 
         return { id: data.id };
     }

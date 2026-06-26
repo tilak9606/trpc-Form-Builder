@@ -7,6 +7,8 @@ import { formSubmissionRouter } from "./routes/form-submission/route";
 import { webhookRouter } from "./routes/webhook/route";
 import { formTemplateRouter } from "./routes/form-template/route";
 import { folderRouter } from "./routes/folder/route";
+import { userRouter } from "./routes/user/route";
+import { paymentRouter } from "./routes/payment/route";
 
 export const serverRouter = router({
   health: healthRouter,
@@ -16,6 +18,8 @@ export const serverRouter = router({
   webhook: webhookRouter,
   formTemplate: formTemplateRouter,
   folder: folderRouter,
+  user: userRouter,
+  payment: paymentRouter,
 });
 
 export { createContext } from "./context";

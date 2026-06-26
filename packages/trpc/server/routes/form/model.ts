@@ -27,11 +27,13 @@ export const listFormsOutputModel = z.array(
         folderId: z.string().nullable().describe("ID of the folder"),
         createdAt: z.date().nullable().describe("Creation timestamp"),
         updatedAt: z.date().nullable().describe("Last updated timestamp"),
+        submissionCount: z.number().describe("Number of submissions"),
     }),
 );
 
 export const getFormInputModel = z.object({
     formId: z.string().describe("UUID or slug of the form to fetch"),
+    status: z.enum(["DRAFT", "PUBLISHED", "CLOSED"]).optional().describe("Filter by form status"),
 });
 
 export const getFormOutputModel = z.object({
@@ -50,7 +52,9 @@ export const getFormOutputModel = z.object({
     themeFontFamily: z.string().nullable().optional(),
     themeBorderRadius: z.string().nullable().optional(),
     themeButtonText: z.string().nullable().optional(),
+    themeButtonTextColor: z.string().nullable().optional(),
     themeLogoUrl: z.string().nullable().optional(),
+    thankYouUrl: z.string().nullable().optional(),
     createdAt: z.string().nullable(),
     updatedAt: z.string().nullable(),
     fields: z.array(fieldWithDetailsOutputModel),
@@ -68,6 +72,7 @@ export const updateFormInputModel = z.object({
     description: z.string().max(300).optional().describe("New description"),
     slug: z.string().max(100).optional().describe("New slug"),
     folderId: z.string().nullable().optional().describe("Folder ID to move to"),
+    status: formStatusEnum.optional().describe("New form status (DRAFT, PUBLISHED, CLOSED)"),
     notifyEmail: z.boolean().optional().describe("Enable email notifications on submission"),
     notifyEmailTo: z.string().email().optional().describe("Email address to send notifications to"),
     themePrimaryColor: z.string().max(7).optional().describe("Primary color hex"),
@@ -77,7 +82,9 @@ export const updateFormInputModel = z.object({
     themeFontFamily: z.string().max(50).optional().describe("Font family name"),
     themeBorderRadius: z.string().max(10).optional().describe("Border radius value"),
     themeButtonText: z.string().max(50).optional().describe("Submit button text"),
+    themeButtonTextColor: z.string().max(7).optional().describe("Submit button text color hex"),
     themeLogoUrl: z.string().optional().describe("Logo image URL"),
+    thankYouUrl: z.string().optional().describe("URL to redirect after submission"),
 });
 
 export const updateFormOutputModel = z.object({
@@ -150,4 +157,13 @@ export const importFormInputModel = z.object({
 export const importFormOutputModel = z.object({
     id: z.string(),
     slug: z.string(),
+});
+
+export const duplicateFormInputModel = z.object({
+    formId: z.string().describe("UUID of the form to duplicate"),
+});
+
+export const duplicateFormOutputModel = z.object({
+    id: z.string().describe("ID of the duplicated form"),
+    slug: z.string().describe("Slug of the duplicated form"),
 });

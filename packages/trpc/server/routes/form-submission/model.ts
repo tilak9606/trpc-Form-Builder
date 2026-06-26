@@ -19,23 +19,53 @@ export const createSubmissionOutputModel = z.object({
 
 export const getSubmissionsByFormIdInputModel = z.object({
     formId: z.string().describe("UUID of the form"),
+    page: z.number().min(1).default(1).optional(),
+    limit: z.number().min(1).max(100).default(20).optional(),
+    search: z.string().optional(),
 });
 
-export const getSubmissionsByFormIdOutputModel = z.array(
-    z.object({
-        id: z.string(),
-        formId: z.uuid().nullable(),
-        respondentEmail: z.string().nullable(),
-        values: z.array(
-            z.object({
-                fieldId: z.uuid(),
-                value: z.string(),
-            }),
-        ),
-        createdAt: z.string().nullable(),
-        updatedAt: z.string().nullable(),
-    }),
-);
+export const getSubmissionsByFormIdOutputModel = z.object({
+    submissions: z.array(
+        z.object({
+            id: z.string(),
+            formId: z.uuid().nullable(),
+            respondentEmail: z.string().nullable(),
+            respondentIp: z.string().nullable(),
+            values: z.array(
+                z.object({
+                    fieldId: z.uuid(),
+                    value: z.string(),
+                }),
+            ),
+            createdAt: z.string().nullable(),
+            updatedAt: z.string().nullable(),
+        }),
+    ),
+    total: z.number(),
+    page: z.number(),
+    limit: z.number(),
+    totalPages: z.number(),
+});
+
+export const getSubmissionByIdInputModel = z.object({
+    submissionId: z.string().describe("UUID of the submission"),
+    formId: z.string().describe("UUID of the form"),
+});
+
+export const getSubmissionByIdOutputModel = z.object({
+    id: z.string(),
+    formId: z.string().nullable(),
+    respondentEmail: z.string().nullable(),
+    respondentIp: z.string().nullable(),
+    values: z.array(
+        z.object({
+            fieldId: z.string(),
+            value: z.string(),
+        }),
+    ),
+    createdAt: z.string().nullable(),
+    updatedAt: z.string().nullable(),
+});
 
 export const exportSubmissionsInputModel = z.object({
     formId: z.string().describe("UUID of the form"),
@@ -70,8 +100,33 @@ export const fieldAnalyticsModel = z.object({
 
 export const getAnalyticsOutputModel = z.object({
     totalSubmissions: z.number(),
+    totalViews: z.number(),
+    totalStarts: z.number(),
+    completionRate: z.number(),
     dailySubmissions: z.array(dailySubmissionModel),
+    dailyViews: z.array(dailySubmissionModel),
+    dailyStarts: z.array(dailySubmissionModel),
     fieldAnalytics: z.array(fieldAnalyticsModel),
+});
+
+export const trackEventInputModel = z.object({
+    formId: z.string().describe("UUID of the form"),
+    eventType: z.enum(["view", "start", "submit"]).describe("Type of analytics event"),
+    sessionId: z.string().optional(),
+    deviceFingerprint: z.string().optional(),
+});
+
+export const trackEventOutputModel = z.object({
+    success: z.boolean(),
+});
+
+export const deleteSubmissionInputModel = z.object({
+    submissionId: z.string().describe("UUID of the submission"),
+    formId: z.string().describe("UUID of the form"),
+});
+
+export const deleteSubmissionOutputModel = z.object({
+    success: z.boolean(),
 });
 
 export type CreateSubmissionInputModel = z.infer<typeof createSubmissionInputModel>;

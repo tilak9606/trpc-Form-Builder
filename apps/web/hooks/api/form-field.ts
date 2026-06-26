@@ -129,7 +129,25 @@ export const useReorderFields = (formId: string) => {
         isSuccess,
         status,
     } = trpc.formField.reorderFields.useMutation({
-        onSuccess: async () => {
+        onMutate: async ({ fieldIds }) => {
+            await utils.formField.getFields.cancel({ formId });
+            const previous = utils.formField.getFields.getData({ formId });
+            if (previous) {
+                const fieldMap = new Map(previous.map((f: any) => [f.id, f]));
+                const reordered = fieldIds
+                    .map((id: string) => fieldMap.get(id))
+                    .filter(Boolean);
+                const remaining = previous.filter((f: any) => !fieldIds.includes(f.id));
+                utils.formField.getFields.setData({ formId }, [...reordered, ...remaining] as any);
+            }
+            return { previous };
+        },
+        onError: (_err, _vars, context) => {
+            if (context?.previous) {
+                utils.formField.getFields.setData({ formId }, context.previous);
+            }
+        },
+        onSettled: async () => {
             await utils.formField.getFields.invalidate({ formId });
         },
     });

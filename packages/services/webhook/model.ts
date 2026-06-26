@@ -13,6 +13,7 @@ export type CreateWebhookInputType = z.infer<typeof createWebhookInput>;
 
 export const getWebhooksInput = z.object({
     formId: z.string().describe("UUID of the form"),
+    userId: z.string().describe("ID of the user"),
 });
 
 export type GetWebhooksInputType = z.infer<typeof getWebhooksInput>;

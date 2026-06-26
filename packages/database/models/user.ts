@@ -12,6 +12,12 @@ export const usersTable = pgTable("users", {
 
   role: varchar("role", { length: 10 }).default("USER").notNull(),
 
+  plan: varchar("plan", { length: 20 }).default("free").notNull(),
+
+  razorpaySubscriptionId: varchar("razorpay_subscription_id", { length: 100 }),
+  razorpayCustomerId: varchar("razorpay_customer_id", { length: 100 }),
+  subscriptionStatus: varchar("subscription_status", { length: 20 }).default("inactive"),
+
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
   updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().$onUpdate(() => sql`now()`),
 });

@@ -1,6 +1,7 @@
 import express from "express";
 import { logger } from "@repo/logger";
 import cors from "cors";
+import crypto from "crypto";
 
 import * as trpcExpress from "@trpc/server/adapters/express";
 import { generateOpenApiDocument, createOpenApiExpressMiddleware } from "trpc-to-openapi";
@@ -12,6 +13,8 @@ import { env } from "./env";
 import cookieParser from "cookie-parser";
 import { auth } from "@repo/services";
 import { upload, uploadToCloudinary } from "./upload";
+import { db, eq } from "@repo/database";
+import { usersTable } from "@repo/database/models/user";
 
 export const app = express();
 
@@ -87,6 +90,68 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
     return res.json(result);
   } catch (err: any) {
     return res.status(400).json({ error: err.message || "Upload failed" });
+  }
+});
+
+app.post("/api/webhooks/razorpay", express.raw({ type: "application/json" }), async (req, res) => {
+  const signature = req.headers["x-razorpay-signature"] as string;
+  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+
+  if (!webhookSecret) {
+    return res.status(500).json({ error: "Webhook secret not configured" });
+  }
+
+  const body = (req as any).rawBody || JSON.stringify(req.body);
+  const expectedSignature = crypto
+    .createHmac("sha256", webhookSecret)
+    .update(body)
+    .digest("hex");
+
+  if (signature !== expectedSignature) {
+    return res.status(400).json({ error: "Invalid signature" });
+  }
+
+  const event = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+
+  try {
+    switch (event.event) {
+      case "subscription.activated":
+      case "subscription.completed": {
+        const subscription = event.payload.subscription.entity;
+        const userId = subscription.notes?.userId;
+        if (userId) {
+          await db.update(usersTable)
+            .set({ plan: subscription.notes?.plan || "pro", subscriptionStatus: "active" })
+            .where(eq(usersTable.id, userId));
+        }
+        break;
+      }
+      case "subscription.cancelled":
+      case "subscription.expired": {
+        const subscription = event.payload.subscription.entity;
+        const userId = subscription.notes?.userId;
+        if (userId) {
+          await db.update(usersTable)
+            .set({ plan: "free", subscriptionStatus: "cancelled" })
+            .where(eq(usersTable.id, userId));
+        }
+        break;
+      }
+      case "subscription.updated": {
+        const subscription = event.payload.subscription.entity;
+        const userId = subscription.notes?.userId;
+        if (userId) {
+          await db.update(usersTable)
+            .set({ subscriptionStatus: subscription.status })
+            .where(eq(usersTable.id, userId));
+        }
+        break;
+      }
+    }
+
+    return res.status(200).json({ received: true });
+  } catch (error) {
+    return res.status(500).json({ error: "Webhook processing failed" });
   }
 });
 

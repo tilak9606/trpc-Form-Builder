@@ -34,7 +34,9 @@ export const updateFormInput = z.object({
     themeFontFamily: z.string().max(50).optional().describe("Font family name"),
     themeBorderRadius: z.string().max(10).optional().describe("Border radius value"),
     themeButtonText: z.string().max(50).optional().describe("Submit button text"),
+    themeButtonTextColor: z.string().max(7).optional().describe("Submit button text color hex"),
     themeLogoUrl: z.string().optional().describe("Logo image URL"),
+    thankYouUrl: z.string().optional().describe("URL to redirect after submission"),
 });
 
 export type UpdateFormInputType = z.infer<typeof updateFormInput>;

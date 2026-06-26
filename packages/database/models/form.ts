@@ -32,7 +32,10 @@ export const formsTable = pgTable("forms", {
     themeFontFamily: varchar("theme_font_family", { length: 50 }).default("Inter"),
     themeBorderRadius: varchar("theme_border_radius", { length: 10 }).default("0.5rem"),
     themeButtonText: varchar("theme_button_text", { length: 50 }).default("Submit"),
+    themeButtonTextColor: varchar("theme_button_text_color", { length: 7 }).default("#ffffff"),
     themeLogoUrl: text("theme_logo_url"),
+
+    thankYouUrl: text("thank_you_url"),
 
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()),

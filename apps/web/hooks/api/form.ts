@@ -51,15 +51,15 @@ export const useListForms = (folderId?: string | null) => {
     };
 };
 
-export const useGetFormWithFields = (formId: string) => {
+export const useGetFormWithFields = (formId: string, status?: "DRAFT" | "PUBLISHED" | "CLOSED") => {
     const {
         data: form,
         error,
         isFetched,
         isFetching,
         isLoading,
-        status,
-    } = trpc.form.getFormWithFields.useQuery({ formId });
+        status: queryStatus,
+    } = trpc.form.getFormWithFields.useQuery({ formId, status });
 
     return {
         form,
@@ -67,7 +67,7 @@ export const useGetFormWithFields = (formId: string) => {
         isFetched,
         isFetching,
         isLoading,
-        status,
+        status: queryStatus,
     };
 };
 
@@ -165,4 +165,20 @@ export const usePublishForm = () => {
         isSuccess,
         status,
     };
+};
+
+export const useDuplicateForm = () => {
+    const utils = trpc.useUtils();
+
+    const {
+        mutateAsync: duplicateFormAsync,
+        mutate: duplicateForm,
+        isPending,
+    } = trpc.form.duplicateForm.useMutation({
+        onSuccess: async () => {
+            await utils.form.invalidate();
+        },
+    });
+
+    return { duplicateFormAsync, duplicateForm, isPending };
 };

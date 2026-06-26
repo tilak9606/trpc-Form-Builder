@@ -86,10 +86,23 @@ export default class FolderService {
     public async moveFormToFolder(payload: MoveFormToFolderInputType) {
         const data = await moveFormToFolderInput.parseAsync(payload);
 
-        await db
+        if (data.folderId) {
+            const folder = await db
+                .select({ id: foldersTable.id })
+                .from(foldersTable)
+                .where(and(eq(foldersTable.id, data.folderId), eq(foldersTable.userId, data.userId)));
+            if (!folder || folder.length === 0)
+                throw new Error("Target folder not found or access denied");
+        }
+
+        const result = await db
             .update(formsTable)
             .set({ folderId: data.folderId })
-            .where(and(eq(formsTable.id, data.formId), eq(formsTable.createdBy, data.userId)));
+            .where(and(eq(formsTable.id, data.formId), eq(formsTable.createdBy, data.userId)))
+            .returning({ id: formsTable.id });
+
+        if (!result || result.length === 0)
+            throw new Error("Form not found or access denied");
 
         return { success: true };
     }

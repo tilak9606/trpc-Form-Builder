@@ -1,12 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Mail, ArrowRight, Sparkles } from "lucide-react";
 import { signIn } from "~/lib/auth-client";
-import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
+import { Doodle } from "~/components/chrome";
 
 function GoogleIcon() {
   return (
@@ -29,11 +27,11 @@ function GithubIcon() {
 
 export default function SigninPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, setIsPending] = useState(false);
-  const [socialPending, setSocialPending] = useState<string | null>(null);
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [error, setError] = React.useState<string | null>(null);
+  const [isPending, setIsPending] = React.useState(false);
+  const [socialPending, setSocialPending] = React.useState<string | null>(null);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -41,9 +39,9 @@ export default function SigninPage() {
     setIsPending(true);
 
     const res = await signIn.email({ email, password });
-    
+
     setIsPending(false);
-    
+
     if (res.error) {
       setError(res.error.message || "Invalid credentials");
     } else {
@@ -62,104 +60,120 @@ export default function SigninPage() {
   };
 
   return (
-    <div className="text-center mb-8">
-      <Link href="/" className="inline-flex items-center gap-2">
-        <Sparkles className="h-6 w-6 text-primary" />
-        <span className="text-xl font-bold">FormForge</span>
-      </Link>
-
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm mt-8">
-        <div className="text-center mb-6">
-          <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Sign in to your account
-          </p>
-        </div>
-
-        <div className="flex gap-3 mb-6">
-          <button
-            type="button"
-            disabled={socialPending !== null}
-            onClick={() => handleSocialSignIn("google")}
-            className="flex-1 inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-background text-sm font-medium transition-colors hover:bg-accent disabled:opacity-50"
-          >
-            <GoogleIcon />
-            Google
-          </button>
-          <button
-            type="button"
-            disabled={socialPending !== null}
-            onClick={() => handleSocialSignIn("github")}
-            className="flex-1 inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-background text-sm font-medium transition-colors hover:bg-accent disabled:opacity-50"
-          >
-            <GithubIcon />
-            GitHub
-          </button>
-        </div>
-
-        <div className="relative mb-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-border" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-card px-2 text-muted-foreground">or continue with email</span>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@company.com"
-                className="pl-10"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
+    <div className="w-full bg-card border border-border rounded-3xl p-10 mx-auto shadow-[0_20px_40px_-12px_rgba(0,0,0,0.05)]">
+      <div className="mb-8 text-center">
+        <h1 className="text-3xl font-serif text-foreground mb-2">
+          Welcome back
+          <span className="relative inline-block ml-1">
+            .
+            <Doodle
+              name="underline-wave"
+              className="absolute -bottom-1 left-0 w-full h-2"
             />
-          </div>
-
-          <div className="flex justify-end">
-            <Link href="/forgot-password" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Forgot password?
-            </Link>
-          </div>
-
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
-
-          <button
-            type="submit"
-            disabled={isPending}
-            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium transition-colors hover:bg-primary/90 disabled:opacity-50"
-          >
-            {isPending ? "Signing in..." : "Sign in"}
-            {!isPending && <ArrowRight className="h-4 w-4" />}
-          </button>
-        </form>
-
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          Don't have an account?{" "}
-          <Link href="/signup" className="font-medium text-foreground hover:underline">
-            Sign up
-          </Link>
-        </p>
+          </span>
+        </h1>
+        <p className="text-sm text-muted-foreground">Sign in to continue to FormForge</p>
       </div>
+
+      <div className="flex gap-3 mb-8">
+        <button
+          type="button"
+          disabled={socialPending !== null}
+          onClick={() => handleSocialSignIn("google")}
+          className="flex-1 inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-border bg-secondary text-sm font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50 active:scale-[0.98]"
+        >
+          <GoogleIcon />
+          Google
+        </button>
+        <button
+          type="button"
+          disabled={socialPending !== null}
+          onClick={() => handleSocialSignIn("github")}
+          className="flex-1 inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-border bg-secondary text-sm font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50 active:scale-[0.98]"
+        >
+          <GithubIcon />
+          GitHub
+        </button>
+      </div>
+
+      <div className="relative mb-8">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-border" />
+        </div>
+        <div className="relative flex justify-center text-xs">
+          <span className="bg-card px-3 text-muted-foreground uppercase tracking-widest font-medium">
+            or email
+          </span>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div>
+          <label
+            htmlFor="email"
+            className="block text-xs font-medium text-muted-foreground ml-1 mb-2 uppercase tracking-widest"
+          >
+            Email <span className="text-destructive">*</span>
+          </label>
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="w-full h-12 px-4 rounded-xl text-sm bg-secondary border border-border text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"
+            required
+          />
+        </div>
+
+        <div>
+          <label
+            htmlFor="password"
+            className="block text-xs font-medium text-muted-foreground ml-1 mb-2 uppercase tracking-widest"
+          >
+            Password <span className="text-destructive">*</span>
+          </label>
+          <input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            className="w-full h-12 px-4 rounded-xl text-sm bg-secondary border border-border text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"
+            required
+          />
+        </div>
+
+        <div className="flex justify-end mt-2">
+          <Link
+            href="/forgot-password"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Forgot password?
+          </Link>
+        </div>
+
+        {error && (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={isPending}
+          className="w-full h-12 mt-4 rounded-xl text-sm font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors active:scale-[0.98] disabled:opacity-50 disabled:hover:bg-primary disabled:active:scale-100"
+        >
+          {isPending ? "Signing in..." : "Login"}
+        </button>
+      </form>
+
+      <p className="text-sm text-muted-foreground text-center mt-8">
+        Don&apos;t have an account?{" "}
+        <Link href="/signup" className="text-foreground font-medium hover:underline">
+          Sign up
+        </Link>
+      </p>
     </div>
   );
 }

@@ -1,12 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Mail, User, ArrowRight, Sparkles } from "lucide-react";
 import { signIn, signUp } from "~/lib/auth-client";
-import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
+import { Doodle } from "~/components/chrome";
+
+const PASSWORD_RULES = [
+  { label: "At least 6 characters", test: (v: string) => v.length >= 6 },
+  { label: "One lowercase letter", test: (v: string) => /[a-z]/.test(v) },
+  { label: "One uppercase letter", test: (v: string) => /[A-Z]/.test(v) },
+  { label: "One number", test: (v: string) => /\d/.test(v) },
+];
 
 function GoogleIcon() {
   return (
@@ -29,12 +34,12 @@ function GithubIcon() {
 
 export default function SignupPage() {
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, setIsPending] = useState(false);
-  const [socialPending, setSocialPending] = useState<string | null>(null);
+  const [name, setName] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [error, setError] = React.useState<string | null>(null);
+  const [isPending, setIsPending] = React.useState(false);
+  const [socialPending, setSocialPending] = React.useState<string | null>(null);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -67,114 +72,149 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="text-center mb-8">
-      <Link href="/" className="inline-flex items-center gap-2">
-        <Sparkles className="h-6 w-6 text-primary" />
-        <span className="text-xl font-bold">FormForge</span>
-      </Link>
-
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm mt-8">
-        <div className="text-center mb-6">
-          <h1 className="text-2xl font-semibold tracking-tight">Create account</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Get started with FormForge
-          </p>
-        </div>
-
-        <div className="flex gap-3 mb-6">
-          <button
-            type="button"
-            disabled={socialPending !== null}
-            onClick={() => handleSocialSignUp("google")}
-            className="flex-1 inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-background text-sm font-medium transition-colors hover:bg-accent disabled:opacity-50"
-          >
-            <GoogleIcon />
-            Google
-          </button>
-          <button
-            type="button"
-            disabled={socialPending !== null}
-            onClick={() => handleSocialSignUp("github")}
-            className="flex-1 inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-background text-sm font-medium transition-colors hover:bg-accent disabled:opacity-50"
-          >
-            <GithubIcon />
-            GitHub
-          </button>
-        </div>
-
-        <div className="relative mb-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-border" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-card px-2 text-muted-foreground">or continue with email</span>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Full name</Label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Jane Doe"
-                className="pl-10"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@company.com"
-                className="pl-10"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              minLength={6}
-            />
-          </div>
-
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
-
-          <button
-            type="submit"
-            disabled={isPending}
-            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium transition-colors hover:bg-primary/90 disabled:opacity-50"
-          >
-            {isPending ? "Creating account..." : "Create account"}
-            {!isPending && <ArrowRight className="h-4 w-4" />}
-          </button>
-        </form>
-
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          Already have an account?{" "}
-          <Link href="/signin" className="font-medium text-foreground hover:underline">
-            Sign in
-          </Link>
-        </p>
+    <div className="space-y-6">
+      <div>
+        <Link href="/" className="text-sm font-semibold text-foreground">
+          formforge.dev
+        </Link>
       </div>
+
+      <div>
+        <h1 className="text-display-md text-foreground">
+          Create your{" "}
+          <span className="text-tint-peach-ink relative inline-block">
+            account
+            <Doodle
+              name="underline-wave"
+              className="absolute -bottom-1 left-0 w-full h-2"
+            />
+          </span>
+          .
+        </h1>
+      </div>
+
+      <div className="flex gap-3">
+        <button
+          type="button"
+          disabled={socialPending !== null}
+          onClick={() => handleSocialSignUp("google")}
+          className="flex-1 inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-border bg-secondary text-sm font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50 active:scale-[0.98]"
+        >
+          <GoogleIcon />
+          Google
+        </button>
+        <button
+          type="button"
+          disabled={socialPending !== null}
+          onClick={() => handleSocialSignUp("github")}
+          className="flex-1 inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-border bg-secondary text-sm font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50 active:scale-[0.98]"
+        >
+          <GithubIcon />
+          GitHub
+        </button>
+      </div>
+
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-border" />
+        </div>
+        <div className="relative flex justify-center text-xs">
+          <span className="bg-background px-3 text-muted-foreground uppercase tracking-widest font-medium">
+            or sign up with email
+          </span>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div>
+          <label
+            htmlFor="name"
+            className="block text-xs font-medium text-muted-foreground ml-1 mb-2 uppercase tracking-widest"
+          >
+            Name <span className="text-destructive">*</span>
+          </label>
+          <input
+            id="name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Your name"
+            className="w-full h-12 px-4 rounded-xl text-sm bg-secondary border border-border text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"
+            required
+          />
+        </div>
+
+        <div>
+          <label
+            htmlFor="email"
+            className="block text-xs font-medium text-muted-foreground ml-1 mb-2 uppercase tracking-widest"
+          >
+            Email <span className="text-destructive">*</span>
+          </label>
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="w-full h-12 px-4 rounded-xl text-sm bg-secondary border border-border text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"
+            required
+          />
+        </div>
+
+        <div>
+          <label
+            htmlFor="password"
+            className="block text-xs font-medium text-muted-foreground ml-1 mb-2 uppercase tracking-widest"
+          >
+            Password <span className="text-destructive">*</span>
+          </label>
+          <input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            className="w-full h-12 px-4 rounded-xl text-sm bg-secondary border border-border text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring/20 focus:border-ring transition-all"
+            required
+            minLength={6}
+          />
+          <ul className="space-y-1 mt-3">
+            {PASSWORD_RULES.map((rule) => (
+              <li
+                key={rule.label}
+                className={`text-xs flex items-center gap-1.5 ${
+                  rule.test(password) ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
+                }`}
+              >
+                <span className="size-1.5 rounded-full bg-current" />
+                {rule.label}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {error && (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={isPending}
+          className="w-full h-12 rounded-xl text-sm font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors active:scale-[0.98] disabled:opacity-50 disabled:hover:bg-primary disabled:active:scale-100"
+        >
+          {isPending ? "Creating account..." : "Create Account"}
+        </button>
+      </form>
+
+      <p className="text-sm text-muted-foreground text-center">
+        Already have an account?{" "}
+        <Link href="/signin" className="text-foreground font-medium hover:underline">
+          Sign in
+        </Link>
+      </p>
     </div>
   );
 }

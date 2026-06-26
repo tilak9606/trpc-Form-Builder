@@ -94,7 +94,7 @@ export default class FormFieldService {
         if (data.placeholder !== undefined) updateData.placeholder = data.placeholder;
         if (data.isRequired !== undefined) updateData.isRequired = data.isRequired;
         if (data.options !== undefined) updateData.options = data.options;
-        if (data.maxFileSize !== undefined) updateData.maxFileSize = data.maxFileSize.toString();
+        if (data.maxFileSize !== undefined) updateData.maxFileSize = data.maxFileSize ? data.maxFileSize.toString() : null;
         if (data.allowedFileTypes !== undefined) updateData.allowedFileTypes = data.allowedFileTypes;
         if (data.validation !== undefined) updateData.validation = data.validation;
         if (data.condition !== undefined) updateData.condition = data.condition;
@@ -174,7 +174,7 @@ export default class FormFieldService {
         if (!result || result.length === 0 || !result[0]?.id)
             throw new Error("Something went wrong while duplicating the field");
 
-        return { id: result[0].id, labelKey: `copy_of_${original.label}`, index };
+        return { id: result[0].id, labelKey: toLabelKey(`Copy of ${original.label}`), index };
     }
 
     public async reorderFields(payload: ReorderFieldsInputType) {

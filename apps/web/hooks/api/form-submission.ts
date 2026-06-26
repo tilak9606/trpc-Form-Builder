@@ -1,5 +1,27 @@
 import { trpc } from "~/trpc/client";
 
+export const useTrackEvent = () => {
+    const {
+        mutateAsync: trackEventAsync,
+    } = trpc.formSubmission.trackEvent.useMutation({});
+
+    return { trackEventAsync };
+};
+
+export const useGetSubmissionById = (submissionId: string, formId: string) => {
+    const {
+        data: submission,
+        error,
+        isLoading,
+        status,
+    } = trpc.formSubmission.getSubmissionById.useQuery(
+        { submissionId, formId },
+        { enabled: !!submissionId && !!formId },
+    );
+
+    return { submission, error, isLoading, status };
+};
+
 export const useCreateSubmission = () => {
     const {
         mutateAsync: createSubmissionAsync,
@@ -77,6 +99,35 @@ export const useGetAnalytics = (formId: string) => {
         error,
         isFetching,
         isLoading,
+        status,
+    };
+};
+
+export const useDeleteSubmission = (formId: string) => {
+    const utils = trpc.useUtils();
+    const {
+        mutateAsync: deleteSubmissionAsync,
+        mutate: deleteSubmission,
+        error,
+        isPending,
+        isError,
+        isIdle,
+        isSuccess,
+        status,
+    } = trpc.formSubmission.deleteSubmission.useMutation({
+        onSuccess: () => {
+            utils.formSubmission.getSubmissionsByFormId.invalidate({ formId });
+        },
+    });
+
+    return {
+        deleteSubmissionAsync,
+        deleteSubmission,
+        error,
+        isPending,
+        isError,
+        isIdle,
+        isSuccess,
         status,
     };
 };

@@ -16,7 +16,7 @@ function VerifyEmailForm() {
 
   useEffect(() => {
     if (token && !isPending && !isSuccess && !error) {
-      verifyEmailAsync({ token }).catch(() => {});
+      verifyEmailAsync({ token }).catch((err) => console.error("Email verify failed:", err));
     }
   }, [token, isPending, isSuccess, error, verifyEmailAsync]);
 

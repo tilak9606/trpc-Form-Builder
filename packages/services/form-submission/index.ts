@@ -3,12 +3,13 @@ import { formsTable } from "@repo/database/models/form";
 import { formFieldsTable } from "@repo/database/models/form-field";
 import { formSubmissionsTable } from "@repo/database/models/form-submission";
 import { formAnalyticsEventsTable } from "@repo/database/models/form-analytics-event";
+import { emailNotificationSettingsTable } from "@repo/database/models/email-notification-settings";
 import { sendEmail } from "../email/index";
 import { checkRateLimit } from "../rate-limiter/index";
+import { TRPCError } from "@trpc/server";
+import { logger } from "@repo/logger";
+import { env } from "../env";
 
-function escapeHtml(str: string): string {
-  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
 import {
     createSubmissionInput,
     type CreateSubmissionInputType,
@@ -24,6 +25,10 @@ import {
     type TrackEventInputType,
 } from "./model";
 
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
 export default class FormSubmissionService {
     private async verifyFormOwnership(formId: string, userId: string): Promise<void> {
         const rows = await db
@@ -32,7 +37,7 @@ export default class FormSubmissionService {
             .where(and(eq(formsTable.id, formId), eq(formsTable.createdBy, userId)));
 
         if (!rows || rows.length === 0)
-            throw new Error(`Form with ID ${formId} not found or access denied`);
+            throw new TRPCError({ code: "NOT_FOUND", message: `Form with ID ${formId} not found or access denied` });
     }
 
     public async createSubmission(payload: CreateSubmissionInputType) {
@@ -56,25 +61,27 @@ export default class FormSubmissionService {
                     eq(formSubmissionsTable.respondentEmail, data.respondentEmail),
                 ))
                 .limit(1);
-            if (existing) throw new Error("You have already submitted this form.");
+            if (existing) throw new TRPCError({ code: "BAD_REQUEST", message: "You have already submitted this form." });
         }
 
         const rateLimitKey = data.deviceFingerprint
             ? `${data.formId}:${data.respondentIp || "unknown"}:${data.deviceFingerprint}`
             : `${data.formId}:${data.respondentIp || "unknown"}`;
         const { allowed } = checkRateLimit(rateLimitKey);
-        if (!allowed) throw new Error("Too many submissions. Please try again later.");
-
-        const values: Record<string, any> = { formId: data.formId, values: data.values, respondentIp: data.respondentIp ?? null };
-        if (data.respondentEmail) values.respondentEmail = data.respondentEmail;
+        if (!allowed) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Too many submissions. Please try again later." });
 
         const result = await db
             .insert(formSubmissionsTable)
-            .values(values)
+            .values({
+                formId: data.formId,
+                values: data.values,
+                respondentIp: data.respondentIp ?? null,
+                respondentEmail: data.respondentEmail ?? null,
+            })
             .returning({ id: formSubmissionsTable.id, createdAt: formSubmissionsTable.createdAt });
 
         if (!result || result.length === 0 || !result[0]?.id)
-            throw new Error("Something went wrong while creating the submission");
+            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Something went wrong while creating the submission" });
 
         const submission = {
             id: result[0].id,
@@ -90,20 +97,24 @@ export default class FormSubmissionService {
 
         const { default: WebhookService } = await import("../webhook/index");
         const webhookSvc = new WebhookService();
-        webhookSvc.triggerWebhooks(data.formId, submission).catch(() => {});
+        webhookSvc.triggerWebhooks(data.formId, submission).catch((err) => logger.error("Webhook trigger failed", { err }));
 
         try {
-            const formRows = await db
-                .select({ title: formsTable.title, notifyEmail: formsTable.notifyEmail, notifyEmailTo: formsTable.notifyEmailTo })
+            const [notif] = await db
+                .select({
+                    title: formsTable.title,
+                    creatorNotifyOnSubmission: emailNotificationSettingsTable.creatorNotifyOnSubmission,
+                    creatorNotifyEmail: emailNotificationSettingsTable.creatorNotifyEmail,
+                })
                 .from(formsTable)
+                .leftJoin(emailNotificationSettingsTable, eq(emailNotificationSettingsTable.formId, formsTable.id))
                 .where(eq(formsTable.id, data.formId));
 
-            const form = formRows[0];
-            if (form?.notifyEmail && form?.notifyEmailTo) {
+            if (notif?.creatorNotifyOnSubmission && notif?.creatorNotifyEmail) {
                 await sendEmail({
-                    to: form.notifyEmailTo,
-                    subject: `New submission: ${form.title}`,
-                    html: `<p>A new submission was received for <strong>${escapeHtml(form.title)}</strong>.</p><p>View it at: <a href="${process.env.WEB_URL || "http://localhost:3000"}/dashboard/forms/${data.formId}/submissions">Submissions page</a></p>`,
+                    to: notif.creatorNotifyEmail,
+                    subject: `New submission: ${notif.title}`,
+                    html: `<p>A new submission was received for <strong>${escapeHtml(notif.title)}</strong>.</p><p>View it at: <a href="${env.WEB_URL}/dashboard/forms/${data.formId}/submissions">Submissions page</a></p>`,
                 });
             }
         } catch {
@@ -183,7 +194,7 @@ export default class FormSubmissionService {
                 eq(formSubmissionsTable.formId, data.formId)
             ));
 
-        if (!row) throw new Error("Submission not found");
+        if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found" });
 
         return {
             id: row.id,
@@ -281,7 +292,7 @@ export default class FormSubmissionService {
             .returning({ id: formSubmissionsTable.id });
 
         if (!result || result.length === 0) {
-            throw new Error("Submission not found or access denied");
+            throw new TRPCError({ code: "NOT_FOUND", message: "Submission not found or access denied" });
         }
 
         return { success: true };

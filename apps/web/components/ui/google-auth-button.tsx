@@ -3,6 +3,8 @@
 import { useEffect, useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGoogleAuth } from "~/hooks/api/auth";
+import { env } from "~/env";
+import { toast } from "~/lib/toast";
 
 declare global {
   interface Window {
@@ -30,12 +32,12 @@ export function GoogleAuthButton() {
       await googleAuthAsync({ idToken: response.credential });
       router.push("/dashboard/forms");
     } catch (err) {
-      console.error("Google auth failed:", err);
+      toast.error("Google sign-in failed. Please try again.");
     }
   }, [googleAuthAsync, router]);
 
   useEffect(() => {
-    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    const clientId = env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
     if (!clientId) return;
 
     if (window.google) {

@@ -18,7 +18,7 @@ import { auth } from "@repo/services";
 import { upload, uploadToCloudinary } from "./upload";
 import { db, eq } from "@repo/database";
 import { usersTable } from "@repo/database/models/user";
-import { checkRateLimit } from "@repo/services/rate-limiter/index";
+import { checkRateLimit } from "@repo/services";
 
 export const app = express();
 
@@ -103,7 +103,7 @@ app.use(
   }),
 );
 
-app.use(cookieParser(process.env.COOKIE_SECRET));
+app.use(cookieParser(env.COOKIE_SECRET));
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
@@ -139,7 +139,7 @@ app.use("/api/auth", authRateLimiter, csrfForMutations, async (req, res, next) =
       ? forwardedProto 
       : req.protocol;
     
-    const allowedHosts = (process.env.ALLOWED_HOSTS || "localhost:8000,localhost:3000").split(",");
+    const allowedHosts = (env.ALLOWED_HOSTS || "localhost:8000,localhost:3000").split(",");
     const validatedHost = host && allowedHosts.some(h => h.trim() === host) ? host : allowedHosts[0];
     
     const url = `${protocol}://${validatedHost}${req.originalUrl || req.url}`;
@@ -225,7 +225,7 @@ type AllowedSubscriptionStatus = (typeof ALLOWED_SUBSCRIPTION_STATUSES)[number];
 
 app.post("/api/webhooks/razorpay", express.raw({ type: "application/json" }), async (req, res) => {
   const signature = req.headers["x-razorpay-signature"] as string;
-  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  const webhookSecret = env.RAZORPAY_WEBHOOK_SECRET;
 
   if (!webhookSecret) {
     return res.status(500).json({ error: "Webhook secret not configured" });

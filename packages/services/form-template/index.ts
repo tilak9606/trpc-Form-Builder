@@ -2,6 +2,7 @@ import { db, eq, and } from "@repo/database";
 import { formTemplatesTable } from "@repo/database/models/form-template";
 import FormService from "../form/index";
 import FormFieldService from "../form-field/index";
+import { TRPCError } from "@trpc/server";
 import {
     createTemplateInput,
     type CreateTemplateInputType,
@@ -27,7 +28,7 @@ export default class FormTemplateService {
             .returning({ id: formTemplatesTable.id });
 
         if (!result || result.length === 0 || !result[0]?.id)
-            throw new Error("Something went wrong while creating the template");
+            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Something went wrong while creating the template" });
 
         return { id: result[0].id };
     }
@@ -64,7 +65,7 @@ export default class FormTemplateService {
             .returning({ id: formTemplatesTable.id });
 
         if (!result || result.length === 0)
-            throw new Error("Template not found or access denied");
+            throw new TRPCError({ code: "NOT_FOUND", message: "Template not found or access denied" });
 
         return { id: data.id };
     }
@@ -78,7 +79,7 @@ export default class FormTemplateService {
             .where(eq(formTemplatesTable.id, data.templateId));
 
         if (!templates || templates.length === 0 || !templates[0])
-            throw new Error("Template not found");
+            throw new TRPCError({ code: "NOT_FOUND", message: "Template not found" });
 
         const template = templates[0];
         const formSvc = new FormService();
@@ -89,7 +90,7 @@ export default class FormTemplateService {
             description: template.description ?? undefined,
         });
 
-        if (!form) throw new Error("Failed to create form from template");
+        if (!form) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create form from template" });
 
         const fields = (template.fields as any[]) ?? [];
         for (let i = 0; i < fields.length; i++) {

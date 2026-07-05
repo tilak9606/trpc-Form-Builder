@@ -56,6 +56,7 @@ import { toast } from "~/lib/toast";
 import { handleTrpcError } from "~/lib/api-error";
 import { ShareModal } from "~/components/form-builder/share-modal";
 import { useCreateTemplate } from "~/hooks/api/form-template";
+import { useArchiveForm } from "~/hooks/api/form";
 import { useFormEditorStore } from "~/lib/stores/form-editor-store";
 import { mapServerFieldsToEditorFields } from "~/lib/form-field-mapper";
 import { cn } from "~/lib/utils";
@@ -123,7 +124,12 @@ export default function FormEditorLayout({
 
   const createFieldMutation = trpc.formField.createField.useMutation();
   const updateFieldMutation = trpc.formField.updateField.useMutation();
-  const deleteFieldMutation = trpc.formField.deleteField.useMutation();
+  const deleteFieldMutation = trpc.formField.deleteField.useMutation({
+    onSuccess: () => {
+      utils.formField.getFields.invalidate({ formId });
+      utils.form.getByIdWithFields.invalidate({ formId });
+    },
+  });
   const reorderFieldMutation = trpc.formField.reorderFields.useMutation();
 
   const publishMutation = trpc.form.publishForm.useMutation({
@@ -248,14 +254,7 @@ export default function FormEditorLayout({
     onError: (err) => handleTrpcError(err),
   });
 
-    const archiveMutation = trpc.form.archiveForm.useMutation({
-    onSuccess: () => {
-      utils.form.listForms.invalidate();
-      toast.success("Form archived.");
-      router.push("/dashboard");
-    },
-    onError: (err) => handleTrpcError(err),
-  });
+    const { archiveFormAsync: archiveMutation, isPending: archivePending } = useArchiveForm();
 
   const deleteMutation = trpc.form.deleteForm.useMutation({
     onSuccess: () => {
@@ -562,7 +561,13 @@ export default function FormEditorLayout({
                 </DropdownMenuItem>
                 {!isArchived && (
                   <DropdownMenuItem
-                    onClick={() => archiveMutation.mutate({ formId })}
+                    onClick={async () => {
+                      try {
+                        await archiveMutation({ formId });
+                        toast.success("Form archived.");
+                        router.push("/dashboard");
+                      } catch { /* handled by hook */ }
+                    }}
                   >
                     <Archive className="size-4 mr-2" />
                     Archive

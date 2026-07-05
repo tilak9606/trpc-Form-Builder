@@ -4,6 +4,7 @@ import {
   randomBytes,
   createHash,
 } from "node:crypto";
+import { env } from "../env";
 
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 16;
@@ -13,8 +14,8 @@ function deriveKey(secret: string): Buffer {
 }
 
 function getEncryptionKey(): Buffer {
-  const key =
-    process.env.TOKEN_ENCRYPTION_KEY || process.env.BETTER_AUTH_SECRET || "dev-fallback-key-min-32-chars!!";
+  const key = env.TOKEN_ENCRYPTION_KEY || process.env.BETTER_AUTH_SECRET;
+  if (!key) throw new Error("TOKEN_ENCRYPTION_KEY or BETTER_AUTH_SECRET must be set in environment");
   return deriveKey(key);
 }
 

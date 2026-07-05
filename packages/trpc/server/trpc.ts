@@ -1,6 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { OpenApiMeta } from "trpc-to-openapi";
-import { checkRateLimit } from "@repo/services/rate-limiter";
+import { checkRateLimit } from "@repo/services";
 
 import { createContext } from "./context";
 

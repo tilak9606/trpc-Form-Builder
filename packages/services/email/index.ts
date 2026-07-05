@@ -1,4 +1,5 @@
 import { env } from "../env";
+import { logger } from "@repo/logger";
 
 export interface SendEmailOptions {
   to: string;
@@ -10,11 +11,7 @@ export interface SendEmailOptions {
 export async function sendEmail({ to, subject, html, text }: SendEmailOptions): Promise<void> {
   // Development: log to console
   if (env.NODE_ENV !== "production") {
-    console.log("\n========== EMAIL ==========");
-    console.log(`To: ${to}`);
-    console.log(`Subject: ${subject}`);
-    console.log(`Text: ${text || "N/A"}`);
-    console.log("===========================\n");
+    logger.info(`Email to ${to}: ${subject}`);
     return;
   }
 

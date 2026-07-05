@@ -8,11 +8,11 @@ export function useGetEmailSettings(formId: string) {
   return { settings: data, isLoading, error };
 }
 
-export function useUpdateEmailSettings() {
+export function useUpdateEmailSettings(formId: string) {
   const utils = trpc.useUtils();
   const { mutateAsync: updateAsync, isPending } = trpc.emailSettings.update.useMutation({
     onSuccess: () => {
-      utils.emailSettings.get.invalidate();
+      utils.emailSettings.get.invalidate({ formId });
     },
   });
   return { updateEmailSettingsAsync: updateAsync, isPending };

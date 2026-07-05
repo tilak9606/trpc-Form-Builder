@@ -49,9 +49,9 @@ export default function PublicFormPage() {
     // Track "view" event on form load
     useEffect(() => {
         if (form?.id) {
-            trackEventAsync({ formId: form.id, eventType: "view" }).catch(() => {});
+            trackEventAsync({ formId: form.id, eventType: "view" }).catch((err) => console.error("Analytics track failed:", err));
         }
-    }, [form?.id]);
+    }, [form?.id, trackEventAsync]);
 
     useEffect(() => {
         if (!form?.fields) return;
@@ -69,7 +69,7 @@ export default function PublicFormPage() {
         setValues((s) => ({ ...s, [fieldId]: v }));
         if (!hasTrackedStart.current && form?.id) {
             hasTrackedStart.current = true;
-            trackEventAsync({ formId: form.id, eventType: "start" }).catch(() => {});
+            trackEventAsync({ formId: form.id, eventType: "start" }).catch((err) => console.error("Analytics start failed:", err));
         }
     };
 
@@ -151,7 +151,7 @@ export default function PublicFormPage() {
         );
     }
 
-    if (form.status === "CLOSED") {
+    if (form.status === "archived") {
         return (
             <div className="min-h-screen flex items-center justify-center bg-[#0F1117] text-[#F9FAFB]">
                 <p className="text-sm opacity-60">This form is closed.</p>
@@ -424,6 +424,66 @@ export default function PublicFormPage() {
                                         />
                                     )}
 
+                                    {f.type === "TIME" && (
+                                        <input
+                                            type="time"
+                                            value={values[f.id] ?? ""}
+                                            onChange={(e) => handleChange(f.id, e.target.value)}
+                                            className="w-full px-3 py-2.5 text-sm outline-none transition-colors"
+                                            style={{ backgroundColor: themeSurface, color: themeText, border: `1.5px solid ${themeBorder}`, borderRadius: themeRadius }}
+                                        />
+                                    )}
+
+                                    {f.type === "RATING" && (
+                                        <div className="flex gap-1">
+                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                <button
+                                                    key={star}
+                                                    type="button"
+                                                    onClick={() => handleChange(f.id, String(star))}
+                                                    className="text-2xl transition-colors"
+                                                    style={{ color: (parseInt(values[f.id] ?? "0") >= star) ? themePrimary : themeBorder }}
+                                                >
+                                                    ★
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {f.type === "TAGS" && (
+                                        <input
+                                            type="text"
+                                            value={values[f.id] ?? ""}
+                                            onChange={(e) => handleChange(f.id, e.target.value)}
+                                            placeholder={f.placeholder ?? "Type tags separated by commas"}
+                                            className="w-full px-3 py-2.5 text-sm outline-none transition-colors"
+                                            style={{ backgroundColor: themeSurface, color: themeText, border: `1.5px solid ${themeBorder}`, borderRadius: themeRadius }}
+                                        />
+                                    )}
+
+                                    {f.type === "TOGGLE" && (
+                                        <label className="flex items-center gap-3 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={values[f.id] === "true"}
+                                                onChange={(e) => handleChange(f.id, e.target.checked ? "true" : "false")}
+                                                className="sr-only"
+                                            />
+                                            <div
+                                                className="w-10 h-6 rounded-full transition-colors relative"
+                                                style={{
+                                                    backgroundColor: values[f.id] === "true" ? themePrimary : themeBorder,
+                                                }}
+                                            >
+                                                <div
+                                                    className="w-4 h-4 rounded-full bg-white absolute top-1 transition-transform"
+                                                    style={{ transform: values[f.id] === "true" ? "translateX(20px)" : "translateX(4px)" }}
+                                                />
+                                            </div>
+                                            <span className="text-sm" style={{ color: themeLabel }}>{f.placeholder || "Toggle"}</span>
+                                        </label>
+                                    )}
+
                                     {f.type === "FILE_UPLOAD" && (
                                         <div className="space-y-2">
                                             {values[f.id] ? (
@@ -470,7 +530,7 @@ export default function PublicFormPage() {
                                                             color: themeText,
                                                             border: `1.5px solid ${themeBorder}`,
                                                             borderRadius: themeRadius,
-                                                            // @ts-ignore
+                                                            // @ts-expect-error --file-bg is a CSS custom property
                                                             "--file-bg": themePrimary,
                                                         }}
                                                     />

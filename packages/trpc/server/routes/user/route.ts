@@ -1,6 +1,6 @@
 import { authenticatedProcedure, router } from "../../trpc";
 import { generatePath } from "../../utils/path-generator";
-import UserService from "@repo/services/user/index";
+import { UserService } from "@repo/services";
 
 import {
   getUserPlanOutputModel,

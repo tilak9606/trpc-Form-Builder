@@ -5,7 +5,7 @@ import { formSubmissionsTable } from "@repo/database/models/form-submission";
 import { formAnalyticsEventsTable } from "@repo/database/models/form-analytics-event";
 import { usersTable } from "@repo/database/models/user";
 import { TRPCError } from "@trpc/server";
-import { SlugService } from "@repo/services/slug";
+import { SlugService } from "../slug";
 const slugService = new SlugService();
 import { PLAN_LIMITS, type UserPlan } from "@repo/database/constants/user-plan";
 

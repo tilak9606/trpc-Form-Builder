@@ -34,6 +34,7 @@ import { FormPreviewRenderer } from "~/components/form-builder/form-preview-rend
 import { EditorialCard } from "~/components/chrome";
 import { trpc } from "~/trpc/client";
 import { useFormEditorStore } from "~/lib/stores/form-editor-store";
+import { mapServerFieldsToEditorFields } from "~/lib/form-field-mapper";
 import { useFormContext } from "../layout";
 
 const settingsSchema = z.object({
@@ -124,18 +125,7 @@ export default function FormSettingsPage() {
         formId,
         title: formData.title ?? "",
         description: formData.description ?? "",
-        fields: (formData.fields ?? []).map((f: any) => ({
-          id: f.id,
-          type: f.type,
-          label: f.label,
-          placeholder: f.placeholder ?? undefined,
-          helpText: f.helpText ?? undefined,
-          required: f.required ?? false,
-          pageNumber: f.pageNumber,
-          options: f.options ?? undefined,
-          validations: f.validations ?? undefined,
-          settings: f.settings ?? undefined,
-        })),
+        fields: mapServerFieldsToEditorFields(formData.fields),
         themeId: formData.themeId,
         coverImageUrl: formData.coverImageUrl,
         customTheme: formData.settings?.customTheme,

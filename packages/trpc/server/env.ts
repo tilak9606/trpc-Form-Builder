@@ -5,6 +5,9 @@ const envSchema = z.object({
   WEB_URL: z.string().default("http://localhost:3000"),
   BETTER_AUTH_SECRET: z.string().min(32),
   BETTER_AUTH_URL: z.string().url(),
+  RAZORPAY_KEY_ID: z.string().optional(),
+  RAZORPAY_KEY_SECRET: z.string().optional(),
+  NEXT_PUBLIC_RAZORPAY_KEY_ID: z.string().optional(),
 });
 
 function createEnv(env: NodeJS.ProcessEnv) {

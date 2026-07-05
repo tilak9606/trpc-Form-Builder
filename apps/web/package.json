@@ -72,10 +72,10 @@
     "tailwindcss": "^4.1.18",
     "vaul": "^1.1.2",
     "zod": "^4.3.5",
-    "zustand": "^5.0.14"
+    "zustand": "^5.0.14",
+    "@repo/database": "workspace:*"
   },
   "devDependencies": {
-    "@repo/database": "workspace:*",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^22.15.3",

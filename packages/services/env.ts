@@ -7,6 +7,9 @@ const envSchema = z.object({
   // Encryption for sensitive data (OAuth tokens, etc.)
   TOKEN_ENCRYPTION_KEY: z.string().min(32).optional(),
 
+  // Form password tokens
+  FORM_TOKEN_SECRET: z.string().min(32).optional(),
+
   // Email (Resend/SendGrid/SMTP)
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.string().optional(),

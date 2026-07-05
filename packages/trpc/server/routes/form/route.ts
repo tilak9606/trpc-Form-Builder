@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, publicProcedure, router } from "../../trpc";
-import { formService } from "@repo/services";
+import { formService, formFieldService } from "@repo/services";
 
 import {
     createFormInputModel,
@@ -397,11 +397,9 @@ export const formRouter = router({
             if (!form) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create form" });
 
             if (input.data.fields && input.data.fields.length > 0) {
-                const { default: FormFieldService } = await import("@repo/services/form-field");
-                const fieldSvc = new FormFieldService();
                 for (let i = 0; i < input.data.fields.length; i++) {
                     const f = input.data.fields[i]!;
-                    await fieldSvc.createField({
+                    await formFieldService.createField({
                         formId: form.id,
                         userId: ctx.user.id,
                         label: f.label,

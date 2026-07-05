@@ -1,9 +1,10 @@
 import { TRPCError } from "@trpc/server";
 import { authenticatedProcedure, paymentProcedure, router } from "../../trpc";
 import { generatePath } from "../../utils/path-generator";
-import UserService from "@repo/services/user";
+import { UserService } from "@repo/services";
 import Razorpay from "razorpay";
 import crypto from "crypto";
+import { env } from "../../env";
 
 import {
     createSubscriptionInputModel,
@@ -14,8 +15,8 @@ import {
 } from "./model";
 
 function createRazorpayInstance() {
-    const keyId = process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    const keyId = env.RAZORPAY_KEY_ID || env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+    const keySecret = env.RAZORPAY_KEY_SECRET;
     if (!keyId || !keySecret) {
         throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",

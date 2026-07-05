@@ -55,7 +55,7 @@ export default function DashboardPage() {
     userPlan != null &&
     planLimits.formLimit > 0 &&
     userPlan.formCount >= planLimits.formLimit * 0.8;
-  const { forms: listForms, isLoading } = useListForms();
+  const { forms: listForms, isLoading, weeklySubmissions } = useListForms();
   const forms = listForms ?? [];
   const { createFormAsync, status: createStatus } = useCreateForm();
   const { publishFormAsync } = usePublishForm();
@@ -75,28 +75,13 @@ export default function DashboardPage() {
     return map;
   }, [analyticsQueries, forms]);
 
-  const weeklySubmissionsValue = React.useMemo(() => {
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    let total = 0;
-    for (const a of analyticsMap.values()) {
-      for (const d of (a.dailySubmissions ?? [])) {
-        if (new Date(d.date) >= sevenDaysAgo) {
-          total += d.count;
-        }
-      }
-    }
-    return total;
-  }, [analyticsMap]);
-
   const filteredForms = statusFilter === "all"
     ? forms
     : forms.filter((f: any) => f.status?.toLowerCase() === statusFilter);
 
   const totalForms = forms.length;
-  const analyticsList = Array.from(analyticsMap.values());
-  const totalResponses = analyticsList.reduce((sum, a) => sum + (a.totalSubmissions ?? 0), 0);
-  const totalStarts = analyticsList.reduce((sum, a) => sum + (a.totalStarts ?? 0), 0);
+  const totalResponses = forms.reduce((sum, f: any) => sum + (f.submissionCount ?? 0), 0);
+  const totalStarts = forms.reduce((sum, f: any) => sum + (f.totalStarts ?? 0), 0);
   const avgCompletion = totalStarts > 0 ? Math.min(100, Math.round((totalResponses / totalStarts) * 100)) : 0;
 
   const handleCreateForm = async () => {
@@ -207,7 +192,7 @@ export default function DashboardPage() {
 
         <div className="bg-card border border-border rounded-3xl p-6 shadow-[0_4px_12px_rgba(0,0,0,0.02)]">
           <div className="text-3xl md:text-4xl font-display text-foreground mb-1">
-            <NumberTicker value={weeklySubmissionsValue} />
+            <NumberTicker value={weeklySubmissions ?? 0} />
           </div>
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">This week</div>
         </div>
@@ -322,7 +307,7 @@ export default function DashboardPage() {
                 )}
 
                 <div className="mt-auto pt-4 text-mono-sm text-muted-foreground relative z-0 pointer-events-none px-1">
-                  {analyticsMap.get(form.id)?.totalSubmissions ?? 0} submissions
+                  {analyticsMap.get(form.id)?.totalSubmissions ?? form.submissionCount ?? 0} submissions
                 </div>
               </EditorialCard>
             </div>

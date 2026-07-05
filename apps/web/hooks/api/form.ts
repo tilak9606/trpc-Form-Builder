@@ -215,3 +215,19 @@ export const useDuplicateForm = () => {
 
     return { duplicateFormAsync, duplicateForm, isPending };
 };
+
+export const useArchiveForm = () => {
+    const utils = trpc.useUtils();
+
+    const {
+        mutateAsync: archiveFormAsync,
+        mutate: archiveForm,
+        isPending,
+    } = trpc.form.archiveForm.useMutation({
+        onSuccess: async () => {
+            await utils.form.listForms.invalidate();
+        },
+    });
+
+    return { archiveFormAsync, archiveForm, isPending };
+};

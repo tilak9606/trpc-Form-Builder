@@ -44,11 +44,17 @@ export default function FieldsPage() {
   const [showLeaveDialog, setShowLeaveDialog] = React.useState(false);
   const [pendingNavigation, setPendingNavigation] = React.useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<{ id: string; label: string } | null>(null);
+  const utils = trpc.useUtils();
 
   const updateFormMutation = trpc.form.updateForm.useMutation();
   const createFieldMutation = trpc.formField.createField.useMutation();
   const updateFieldMutation = trpc.formField.updateField.useMutation();
-  const deleteFieldMutation = trpc.formField.deleteField.useMutation();
+  const deleteFieldMutation = trpc.formField.deleteField.useMutation({
+    onSuccess: () => {
+      utils.formField.getFields.invalidate({ formId });
+      utils.form.getByIdWithFields.invalidate({ formId });
+    },
+  });
   const duplicateFieldMutation = trpc.formField.duplicateField.useMutation();
   const reorderFieldMutation = trpc.formField.reorderFields.useMutation();
 
@@ -113,7 +119,6 @@ export default function FieldsPage() {
       await saveForm();
       toast.success("Draft saved.");
     } catch (err) {
-      console.error("Save draft error:", err);
       handleTrpcError(err);
     } finally {
       setIsSaving(false);
@@ -128,7 +133,6 @@ export default function FieldsPage() {
       toast.success("Form saved!");
       router.push(`/dashboard/forms/${formId}/theme`);
     } catch (err) {
-      console.error("Save & continue error:", err);
       handleTrpcError(err);
     } finally {
       setIsSaving(false);
@@ -164,7 +168,6 @@ export default function FieldsPage() {
         },
       });
     } catch (err) {
-      console.error("Step 1 - update form failed:", err);
       throw err;
     }
 
@@ -177,7 +180,6 @@ export default function FieldsPage() {
       try {
         await deleteFieldMutation.mutateAsync({ id, formId });
       } catch (err) {
-        console.error(`Step 2 - delete field ${id} failed:`, err);
         throw err;
       }
     }
@@ -219,14 +221,12 @@ export default function FieldsPage() {
     try {
       created = await Promise.all(createPromises);
     } catch (err) {
-      console.error("Step 3 - create fields failed:", err);
       throw err;
     }
 
     try {
       await Promise.all(updatePromises);
     } catch (err) {
-      console.error("Step 4 - update fields failed:", err);
       throw err;
     }
 
@@ -239,7 +239,6 @@ export default function FieldsPage() {
         fieldIds: finalIds,
       });
     } catch (err) {
-      console.error("Step 5 - reorder fields failed:", err);
       throw err;
     }
 
@@ -296,10 +295,15 @@ export default function FieldsPage() {
     if (!deleteTarget) return;
     if (deleteTarget.id.startsWith("temp_")) {
       store.deleteField(deleteTarget.id);
-    } else {
-      await deleteFieldMutation.mutateAsync({ id: deleteTarget.id, formId });
+      setDeleteTarget(null);
+      return;
     }
-    setDeleteTarget(null);
+    try {
+      await deleteFieldMutation.mutateAsync({ id: deleteTarget.id, formId });
+      setDeleteTarget(null);
+    } catch {
+      toast.error("Failed to delete field.");
+    }
   };
 
   const handleUpdateField = (fieldId: string, data: any) => {

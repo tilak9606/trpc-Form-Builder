@@ -19,3 +19,6 @@ export const emailSettingsService = new EmailSettingsService();
 export { sendEmail } from "./email/index";
 export { auth } from "./auth/index";
 export { encrypt, decrypt, encryptObject } from "./encryption/index";
+export { checkRateLimit } from "./rate-limiter/index";
+export { default as FormFieldService } from "./form-field/index";
+export { default as UserService } from "./user/index";

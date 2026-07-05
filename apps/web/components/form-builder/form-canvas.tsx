@@ -23,17 +23,9 @@ import { FIELD_TYPE_ICON_MAP } from "./field-type-picker";
 import { cn } from "~/lib/utils";
 import { env } from "~/env";
 import { Button } from "~/components/ui/button";
+import { toast } from "~/lib/toast";
 import { Label } from "~/components/ui/label";
-
-export interface EditorField {
-  id: string;
-  type: string;
-  label: string;
-  placeholder?: string;
-  helpText?: string;
-  required: boolean;
-  options?: { label: string; value: string }[];
-}
+import type { EditorField } from "~/lib/stores/form-editor-store";
 
 interface FormCanvasProps {
   fields: EditorField[];
@@ -95,7 +87,7 @@ export function FormCanvas({
       const data = await res.json();
       onUpdateCoverImage(data.url);
     } catch (err) {
-      console.error(err);
+      toast.error("An error occurred.");
     } finally {
       setIsUploading(false);
     }

@@ -563,4 +563,4 @@ This project is licensed under the MIT License.
 
 ---
 
-<p align="center">Built with ❤️ using Turborepo, Next.js, Express, and TypeScript</p>
+<p align="center">Built using Turborepo, Next.js, Express, and TypeScript</p>

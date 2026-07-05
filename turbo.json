@@ -5,7 +5,31 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "env": [
+        "DATABASE_URL",
+        "BETTER_AUTH_SECRET",
+        "BETTER_AUTH_URL",
+        "ALLOWED_HOSTS",
+        "COOKIE_SECRET",
+        "TOKEN_ENCRYPTION_KEY",
+        "NODE_ENV",
+        "PORT",
+        "BASE_URL",
+        "WEB_URL",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "SMTP_HOST",
+        "SMTP_PORT",
+        "SMTP_USER",
+        "SMTP_PASS",
+        "FROM_EMAIL",
+        "CLOUDINARY_CLOUD_NAME",
+        "CLOUDINARY_API_KEY",
+        "CLOUDINARY_API_SECRET",
+        "RAZORPAY_KEY_SECRET",
+        "RAZORPAY_KEY_ID"
+      ]
     },
     "lint": {
       "dependsOn": ["^lint"]

@@ -215,10 +215,10 @@ app.post("/api/upload", async (req, res, next) => {
   }
 });
 
-const PLAN_ID_TO_NAME: Record<string, string> = {
+const PLAN_ID_TO_NAME = {
   "plan_T6XDicxtJ8sYzg": "pro",
   "plan_T6XH4MOa1t7BNk": "enterprise",
-};
+} as const;
 
 const ALLOWED_SUBSCRIPTION_STATUSES = ["active", "cancelled", "expired", "pending"] as const;
 type AllowedSubscriptionStatus = (typeof ALLOWED_SUBSCRIPTION_STATUSES)[number];
@@ -253,7 +253,7 @@ app.post("/api/webhooks/razorpay", express.raw({ type: "application/json" }), as
         const subscription = event.payload.subscription.entity;
         const userId = subscription.notes?.userId;
         if (userId) {
-          const planName = PLAN_ID_TO_NAME[subscription.plan_id] || "pro";
+          const planName: "pro" | "enterprise" = PLAN_ID_TO_NAME[subscription.plan_id as keyof typeof PLAN_ID_TO_NAME] || "pro";
           await db.update(usersTable)
             .set({ plan: planName, subscriptionStatus: "active" })
             .where(eq(usersTable.id, userId));
@@ -324,7 +324,7 @@ app.use((req, res) => {
 });
 
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  logger.error({ err, path: req.path, method: req.method }, "Unhandled error");
+  logger.error("Unhandled error", { err, path: req.path, method: req.method });
   res.status(500).json({ error: "Internal server error" });
 });
 

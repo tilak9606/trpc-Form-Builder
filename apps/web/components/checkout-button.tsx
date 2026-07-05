@@ -4,7 +4,9 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useCreateSubscription, useVerifyPayment } from "~/hooks/api/payment";
+import { trpc } from "~/trpc/client";
 import { toast } from "sonner";
+import { Button } from "~/components/ui/button";
 
 declare global {
     interface Window {
@@ -16,10 +18,13 @@ interface CheckoutButtonProps {
     plan: "pro" | "enterprise";
     children: React.ReactNode;
     className?: string;
+    variant?: "default" | "forest" | "outline";
+    size?: "default" | "lg";
 }
 
-export function CheckoutButton({ plan, children, className }: CheckoutButtonProps) {
+export function CheckoutButton({ plan, children, className, variant = "forest", size = "lg" }: CheckoutButtonProps) {
     const router = useRouter();
+    const utils = trpc.useUtils();
     const { createSubscriptionAsync, isPending: isCreating } = useCreateSubscription();
     const { verifyPaymentAsync, isPending: isVerifying } = useVerifyPayment();
 
@@ -39,6 +44,8 @@ export function CheckoutButton({ plan, children, className }: CheckoutButtonProp
                             razorpaySubscriptionId: response.razorpay_subscription_id,
                             razorpaySignature: response.razorpay_signature,
                         });
+                        await utils.user.invalidate();
+                        await utils.payment.invalidate();
                         toast.success("Payment successful! Welcome to Pro.");
                         router.push("/dashboard");
                     } catch (error) {
@@ -62,9 +69,11 @@ export function CheckoutButton({ plan, children, className }: CheckoutButtonProp
     };
 
     return (
-        <button
+        <Button
             onClick={handleCheckout}
             disabled={isCreating || isVerifying}
+            variant={variant}
+            size={size}
             className={className}
         >
             {isCreating || isVerifying ? (
@@ -72,6 +81,6 @@ export function CheckoutButton({ plan, children, className }: CheckoutButtonProp
             ) : (
                 children
             )}
-        </button>
+        </Button>
     );
 }

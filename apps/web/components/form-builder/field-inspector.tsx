@@ -59,7 +59,7 @@ export function FieldInspector({ field, onUpdate }: FieldInspectorProps) {
   const hasTextValidation = field.type === "TEXT" || field.type === "TEXTAREA";
   const hasNumberValidation = field.type === "NUMBER";
   const hasRatingSettings = field.type === "RATING";
-  const hasOptions = field.type === "SELECT" || field.type === "MULTI_SELECT";
+  const hasOptions = ["SELECT", "MULTI_SELECT", "RADIO", "CHECKBOX", "YES_NO", "TAGS", "TOGGLE"].includes(field.type);
 
   return (
     <div className="p-4 space-y-6">

@@ -10,6 +10,13 @@ import { HowItWorks } from "~/components/landing/how-it-works";
 import { StatsSection } from "~/components/landing/stats-section";
 import { PricingSection } from "~/components/landing/pricing-section";
 import { CTASection } from "~/components/landing/cta-section";
+import dynamic from "next/dynamic";
+
+const DragDemo = dynamic(
+  () => import("~/components/landing/drag-demo").then((mod) => mod.DragDemo),
+  { ssr: false }
+);
+import { ThemeShowcase } from "~/components/landing/theme-showcase";
 import { useSession } from "~/lib/auth-client";
 
 function HeroCTAButtons() {
@@ -65,8 +72,20 @@ export default function LandingPage() {
           <HowItWorks />
         </div>
 
+        {/* DRAG DEMO */}
+        <section className="px-6 py-24">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-display-md text-center mb-4">Drag. Drop. Done.</h2>
+            <p className="text-center text-muted-foreground mb-12">Building forms is as intuitive as rearranging sticky notes.</p>
+            <DragDemo />
+          </div>
+        </section>
+
         {/* STATS */}
         <StatsSection />
+
+        {/* THEME SHOWCASE */}
+        <ThemeShowcase />
 
         {/* PRICING */}
         <PricingSection />

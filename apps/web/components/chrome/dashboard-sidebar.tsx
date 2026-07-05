@@ -44,6 +44,7 @@ import { signOut } from "~/lib/auth-client";
 import { useListFolders, useCreateFolder, useUpdateFolder, useDeleteFolder } from "~/hooks/api/folder";
 import { useListForms } from "~/hooks/api/form";
 import { useUserPlan } from "~/hooks/api/user";
+import { CheckoutButton } from "~/components/checkout-button";
 import {
   Dialog,
   DialogContent,
@@ -264,6 +265,15 @@ function UsageMeter() {
         >
           Upgrade for more
         </Link>
+      )}
+      {plan.plan === "free" && (
+        <CheckoutButton
+          plan="pro"
+          className="mt-2 w-full inline-flex items-center justify-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-[11px] font-medium hover:bg-primary/90 transition-colors"
+        >
+          <Sparkles className="size-3" />
+          Upgrade to Pro
+        </CheckoutButton>
       )}
     </div>
   );

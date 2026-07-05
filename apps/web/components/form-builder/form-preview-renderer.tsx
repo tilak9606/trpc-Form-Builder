@@ -263,26 +263,56 @@ function renderFieldInput(
 
     case "CHECKBOX":
       return (
-        <div className="flex items-center gap-2">
-          <div
-            className="shrink-0"
-            style={{
-              width: "18px",
-              height: "18px",
-              borderRadius: `${Math.min(shape.radius, 4)}px`,
-              border: `${shape.border?.width ?? 1}px ${shape.border?.style ?? "solid"} ${colors.border}`,
-              background: colors.surface,
-            }}
-          />
-          <span
-            style={{
-              color: colors.foregroundSoft,
-              fontFamily: fonts.body,
-              fontSize: `${(fonts.scale?.body ?? 1) * 0.85}rem`,
-            }}
-          >
-            {field.placeholder || "Checkbox"}
-          </span>
+        <div className="space-y-3 mt-1">
+          {field.options && field.options.length > 0 ? (
+            <div className="space-y-2 pl-3" style={{ borderLeft: `2px solid ${colors.border}` }}>
+              {field.options.map((opt: any, i: number) => (
+                <div key={i} className="flex items-center gap-2">
+                  <div
+                    className="shrink-0"
+                    style={{
+                      width: "16px",
+                      height: "16px",
+                      borderRadius: `${Math.min(shape.radius, 4)}px`,
+                      border: `${shape.border?.width ?? 1}px ${shape.border?.style ?? "solid"} ${colors.border}`,
+                      background: colors.surface,
+                    }}
+                  />
+                  <span
+                    style={{
+                      color: colors.foreground,
+                      fontFamily: fonts.body,
+                      fontSize: `${(fonts.scale?.body ?? 1) * 0.85}rem`,
+                    }}
+                  >
+                    {opt.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div
+                className="shrink-0"
+                style={{
+                  width: "18px",
+                  height: "18px",
+                  borderRadius: `${Math.min(shape.radius, 4)}px`,
+                  border: `${shape.border?.width ?? 1}px ${shape.border?.style ?? "solid"} ${colors.border}`,
+                  background: colors.surface,
+                }}
+              />
+              <span
+                style={{
+                  color: colors.foregroundSoft,
+                  fontFamily: fonts.body,
+                  fontSize: `${(fonts.scale?.body ?? 1) * 0.85}rem`,
+                }}
+              >
+                {field.placeholder || "Checkbox"}
+              </span>
+            </div>
+          )}
         </div>
       );
 
@@ -297,6 +327,7 @@ function renderFieldInput(
 
     case "SELECT":
     case "MULTI_SELECT":
+    case "RADIO":
       return (
         <div className="space-y-3 mt-1">
           <div

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useRef, type FormEvent } from "react";
+import { Suspense, useState, useRef, useMemo, type FormEvent } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
@@ -12,9 +12,10 @@ import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import {
-  useCreateForm, useListForms, useImportForm, usePublishForm, useDeleteForm, useDuplicateForm,
+  useCreateForm, useListForms, useImportForm, usePublishForm, useUnpublishForm, useDeleteForm, useDuplicateForm,
 } from "~/hooks/api/form";
 import { useListFolders, useMoveFormToFolder } from "~/hooks/api/folder";
+import { trpc } from "~/trpc/client";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle, DialogTrigger,
@@ -46,11 +47,25 @@ function DashboardFormsContent() {
   const { createFormAsync, error, status } = useCreateForm();
   const { importFormAsync, isPending: importPending } = useImportForm();
   const { publishFormAsync } = usePublishForm();
+  const { unpublishFormAsync } = useUnpublishForm();
   const { deleteFormAsync } = useDeleteForm();
   const { duplicateFormAsync, isPending: duplicatePending } = useDuplicateForm();
   const { folders } = useListFolders();
   const { moveFormToFolderAsync } = useMoveFormToFolder();
   const { forms, isLoading } = useListForms(activeFolder);
+
+  const analyticsQueries = trpc.useQueries((t) =>
+    (forms ?? []).map((f: any) => t.formSubmission.getAnalytics({ formId: f.id })),
+  );
+
+  const analyticsMap = useMemo(() => {
+    const map = new Map<string, any>();
+    analyticsQueries.forEach((query, i) => {
+      const formId = forms?.[i]?.id;
+      if (query.data && formId) map.set(formId, query.data);
+    });
+    return map;
+  }, [analyticsQueries, forms]);
 
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [moveFormId, setMoveFormId] = useState<string | null>(null);
@@ -77,9 +92,13 @@ function DashboardFormsContent() {
 
   const handlePublishToggle = async (formId: string, currentStatus: string) => {
     try {
-      const newStatus = currentStatus?.toUpperCase() === "PUBLISHED" ? "DRAFT" : "PUBLISHED";
-      await publishFormAsync({ formId, status: newStatus as any });
-      toast.success(newStatus === "PUBLISHED" ? "Form published!" : "Form unpublished.");
+      if (currentStatus?.toUpperCase() === "PUBLISHED") {
+        await unpublishFormAsync({ formId });
+        toast.success("Form unpublished.");
+      } else {
+        await publishFormAsync({ formId });
+        toast.success("Form published!");
+      }
     } catch {
       toast.error("Failed to update form status.");
     }
@@ -376,12 +395,18 @@ function DashboardFormsContent() {
                   </DropdownMenu>
                 </div>
 
-                <div
-                  className="h-32 -mx-6 -mt-6 mb-4 shrink-0 relative z-0 pointer-events-none"
-                  style={{
-                    background: `linear-gradient(135deg, var(--tint-mint), var(--tint-peach))`,
-                  }}
-                />
+                {(form as any).coverImageUrl ? (
+                  <div className="h-32 -mx-6 -mt-6 mb-4 shrink-0 relative z-0 pointer-events-none overflow-hidden">
+                    <img src={(form as any).coverImageUrl} alt="" className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <div
+                    className="h-32 -mx-6 -mt-6 mb-4 shrink-0 relative z-0 pointer-events-none"
+                    style={{
+                      background: `linear-gradient(135deg, var(--tint-mint), var(--tint-peach))`,
+                    }}
+                  />
+                )}
 
                 <div className="flex items-center gap-2 flex-wrap relative z-0 pointer-events-none px-1">
                   <h3 className="text-lg font-semibold text-foreground line-clamp-1">
@@ -397,7 +422,7 @@ function DashboardFormsContent() {
                 )}
 
                 <div className="mt-auto pt-4 text-mono-sm text-muted-foreground relative z-0 pointer-events-none px-1">
-                  {(form as any).totalViews ?? 0} views · {(form as any).totalStarts ?? 0} starts · {(form as any).totalSubmissions ?? 0} subs
+                  {(analyticsMap.get(form.id)?.totalViews ?? 0)} views · {(analyticsMap.get(form.id)?.totalStarts ?? 0)} starts · {(analyticsMap.get(form.id)?.totalSubmissions ?? 0)} subs
                 </div>
               </EditorialCard>
             </div>

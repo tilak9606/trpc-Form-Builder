@@ -84,11 +84,12 @@ export default class FormTemplateService {
         const formSvc = new FormService();
         const fieldSvc = new FormFieldService();
 
-        const form = await formSvc.createForm({
+        const form = await formSvc.create(data.userId, {
             title: data.title ?? template.title,
             description: template.description ?? undefined,
-            createdBy: data.userId,
         });
+
+        if (!form) throw new Error("Failed to create form from template");
 
         const fields = (template.fields as any[]) ?? [];
         for (let i = 0; i < fields.length; i++) {

@@ -3,7 +3,10 @@ import { z } from "zod";
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   WEB_URL: z.string().default("http://localhost:3000"),
-  
+
+  // Encryption for sensitive data (OAuth tokens, etc.)
+  TOKEN_ENCRYPTION_KEY: z.string().min(32).optional(),
+
   // Email (Resend/SendGrid/SMTP)
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.string().optional(),

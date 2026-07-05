@@ -4,8 +4,6 @@ import UserService from "@repo/services/user/index";
 
 import {
   getUserPlanOutputModel,
-  updateUserPlanInputModel,
-  updateUserPlanOutputModel,
 } from "./model";
 
 const TAGS = ["User"];
@@ -18,14 +16,6 @@ export const userRouter = router({
     .output(getUserPlanOutputModel)
     .query(async ({ ctx }) => {
       return userService.getUserPlan(ctx.user!.id);
-    }),
-
-  updateUserPlan: authenticatedProcedure
-    .meta({ openapi: { method: "PATCH", path: getPath("/updateUserPlan"), tags: TAGS, protect: true } })
-    .input(updateUserPlanInputModel)
-    .output(updateUserPlanOutputModel)
-    .mutation(async ({ input, ctx }) => {
-      return userService.updateUserPlan(ctx.user!.id, input.plan);
     }),
 });
 

@@ -9,6 +9,7 @@ import { formTemplateRouter } from "./routes/form-template/route";
 import { folderRouter } from "./routes/folder/route";
 import { userRouter } from "./routes/user/route";
 import { paymentRouter } from "./routes/payment/route";
+import { emailSettingsRouter } from "./routes/email-settings/route";
 
 export const serverRouter = router({
   health: healthRouter,
@@ -20,6 +21,7 @@ export const serverRouter = router({
   folder: folderRouter,
   user: userRouter,
   payment: paymentRouter,
+  emailSettings: emailSettingsRouter,
 });
 
 export { createContext } from "./context";

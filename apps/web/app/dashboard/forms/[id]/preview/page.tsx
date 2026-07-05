@@ -78,7 +78,13 @@ export default function PreviewPage() {
             </span>
           )}
           <Button variant="outline" size="sm" asChild>
-            <a href={`/form/${formId}`} target="_blank" rel="noopener noreferrer">
+            <a
+              href={(form as any)?.status === "published"
+                ? `/form/${(form as any)?.slug}`
+                : `/dashboard/forms/${formId}/preview`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               <ExternalLink className="size-3.5 mr-1.5" />
               Open in new tab
             </a>

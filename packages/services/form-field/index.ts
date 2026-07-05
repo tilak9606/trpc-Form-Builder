@@ -1,6 +1,7 @@
 import { db, eq, max, and } from "@repo/database";
 import { formsTable } from "@repo/database/models/form";
 import { formFieldsTable } from "@repo/database/models/form-field";
+import { TRPCError } from "@trpc/server";
 import {
     createFieldInput,
     type CreateFieldInputType,
@@ -23,8 +24,8 @@ function toLabelKey(label: string): string {
 }
 
 export default class FormFieldService {
-    private async getNextIndex(formId: string): Promise<string> {
-        const result = await db
+    private async getNextIndex(formId: string, tx?: any): Promise<string> {
+        const result = await (tx ?? db)
             .select({ maxIndex: max(formFieldsTable.index) })
             .from(formFieldsTable)
             .where(eq(formFieldsTable.formId, formId));
@@ -42,7 +43,7 @@ export default class FormFieldService {
             .where(and(eq(formsTable.id, formId), eq(formsTable.createdBy, userId)));
 
         if (!rows || rows.length === 0)
-            throw new Error(`Form with ID ${formId} not found or access denied`);
+            throw new TRPCError({ code: "NOT_FOUND", message: `Form with ID ${formId} not found or access denied` });
     }
 
     public async createField(payload: CreateFieldInputType) {
@@ -51,32 +52,35 @@ export default class FormFieldService {
         await this.verifyFormOwnership(data.formId, data.userId);
 
         const labelKey = toLabelKey(data.label);
-        const index = await this.getNextIndex(data.formId);
 
-        const result = await db
-            .insert(formFieldsTable)
-            .values({
-                label: data.label,
-                labelKey,
-                type: data.type,
-                formId: data.formId,
-                description: data.description,
-                placeholder: data.placeholder,
-                isRequired: data.isRequired ?? false,
-                options: data.options ?? [],
-                maxFileSize: data.maxFileSize ? data.maxFileSize.toString() : null,
-                allowedFileTypes: data.allowedFileTypes ?? null,
-                validation: data.validation ?? null,
-                condition: data.condition ?? null,
-                page: (data.page ?? 1).toString(),
-                index,
-            })
-            .returning({ id: formFieldsTable.id });
+        return await db.transaction(async (tx) => {
+            const index = await this.getNextIndex(data.formId, tx);
 
-        if (!result || result.length === 0 || !result[0]?.id)
-            throw new Error("Something went wrong while creating the field");
+            const result = await tx
+                .insert(formFieldsTable)
+                .values({
+                    label: data.label,
+                    labelKey,
+                    type: data.type,
+                    formId: data.formId,
+                    description: data.description,
+                    placeholder: data.placeholder,
+                    isRequired: data.isRequired ?? false,
+                    options: data.options ?? [],
+                    maxFileSize: data.maxFileSize ? data.maxFileSize.toString() : null,
+                    allowedFileTypes: data.allowedFileTypes ?? null,
+                    validation: data.validation ?? null,
+                    condition: data.condition ?? null,
+                    page: (data.page ?? 1).toString(),
+                    index,
+                })
+                .returning({ id: formFieldsTable.id });
 
-        return { id: result[0].id, labelKey, index };
+            if (!result || result.length === 0 || !result[0]?.id)
+                throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Something went wrong while creating the field" });
+
+            return { id: result[0].id, labelKey, index };
+        });
     }
 
     public async updateField(payload: UpdateFieldInputType) {
@@ -84,7 +88,7 @@ export default class FormFieldService {
 
         await this.verifyFormOwnership(data.formId, data.userId);
 
-        const updateData: Record<string, any> = {};
+        const updateData = {} as Partial<typeof formFieldsTable.$inferInsert>;
         if (data.label !== undefined) {
             updateData.label = data.label;
             updateData.labelKey = toLabelKey(data.label);
@@ -107,7 +111,7 @@ export default class FormFieldService {
             .returning({ id: formFieldsTable.id });
 
         if (!result || result.length === 0)
-            throw new Error(`Field with ID ${data.id} not found`);
+            throw new TRPCError({ code: "NOT_FOUND", message: `Field with ID ${data.id} not found` });
 
         return { id: result[0]!.id };
     }
@@ -117,22 +121,24 @@ export default class FormFieldService {
 
         await this.verifyFormOwnership(data.formId, data.userId);
 
-        const result = await db
-            .delete(formFieldsTable)
-            .where(
-                and(
-                    eq(formFieldsTable.id, data.id),
-                    eq(formFieldsTable.formId, data.formId),
-                ),
-            )
-            .returning({ id: formFieldsTable.id });
+        return await db.transaction(async (tx) => {
+            const result = await tx
+                .delete(formFieldsTable)
+                .where(
+                    and(
+                        eq(formFieldsTable.id, data.id),
+                        eq(formFieldsTable.formId, data.formId),
+                    ),
+                )
+                .returning({ id: formFieldsTable.id });
 
-        if (!result || result.length === 0)
-            throw new Error(`Field with ID ${data.id} not found`);
+            if (!result || result.length === 0)
+                throw new TRPCError({ code: "NOT_FOUND", message: `Field with ID ${data.id} not found` });
 
-        await this.reindexFields(data.formId);
+            await this.reindexFields(data.formId, tx);
 
-        return { id: result[0]!.id };
+            return { id: result[0]!.id };
+        });
     }
 
     public async duplicateField(payload: DuplicateFieldInputType) {
@@ -146,35 +152,38 @@ export default class FormFieldService {
             .where(and(eq(formFieldsTable.id, data.id), eq(formFieldsTable.formId, data.formId)));
 
         if (!fields || fields.length === 0)
-            throw new Error(`Field with ID ${data.id} not found`);
+            throw new TRPCError({ code: "NOT_FOUND", message: `Field with ID ${data.id} not found` });
 
         const original = fields[0]!;
-        const index = await this.getNextIndex(data.formId);
 
-        const result = await db
-            .insert(formFieldsTable)
-            .values({
-                label: `Copy of ${original.label}`,
-                labelKey: `${toLabelKey(`Copy of ${original.label}`)}`,
-                type: original.type,
-                formId: original.formId,
-                description: original.description,
-                placeholder: original.placeholder,
-                isRequired: original.isRequired,
-                options: original.options,
-                maxFileSize: original.maxFileSize,
-                allowedFileTypes: original.allowedFileTypes,
-                validation: original.validation,
-                condition: original.condition,
-                page: original.page,
-                index,
-            })
-            .returning({ id: formFieldsTable.id });
+        return await db.transaction(async (tx) => {
+            const index = await this.getNextIndex(data.formId, tx);
 
-        if (!result || result.length === 0 || !result[0]?.id)
-            throw new Error("Something went wrong while duplicating the field");
+            const result = await tx
+                .insert(formFieldsTable)
+                .values({
+                    label: `Copy of ${original.label}`,
+                    labelKey: `${toLabelKey(`Copy of ${original.label}`)}`,
+                    type: original.type,
+                    formId: original.formId,
+                    description: original.description,
+                    placeholder: original.placeholder,
+                    isRequired: original.isRequired,
+                    options: original.options,
+                    maxFileSize: original.maxFileSize,
+                    allowedFileTypes: original.allowedFileTypes,
+                    validation: original.validation,
+                    condition: original.condition,
+                    page: original.page,
+                    index,
+                })
+                .returning({ id: formFieldsTable.id });
 
-        return { id: result[0].id, labelKey: toLabelKey(`Copy of ${original.label}`), index };
+            if (!result || result.length === 0 || !result[0]?.id)
+                throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Something went wrong while duplicating the field" });
+
+            return { id: result[0].id, labelKey: toLabelKey(`Copy of ${original.label}`), index };
+        });
     }
 
     public async reorderFields(payload: ReorderFieldsInputType) {
@@ -199,21 +208,20 @@ export default class FormFieldService {
         return { success: true };
     }
 
-    private async reindexFields(formId: string) {
-        const fields = await db
+    private async reindexFields(formId: string, tx?: any) {
+        const fields = await (tx ?? db)
             .select({ id: formFieldsTable.id })
             .from(formFieldsTable)
             .where(eq(formFieldsTable.formId, formId))
             .orderBy(formFieldsTable.index);
 
-        await db.transaction(async (tx) => {
-            for (let i = 0; i < fields.length; i++) {
-                await tx
-                    .update(formFieldsTable)
-                    .set({ index: (i + 1).toString() })
-                    .where(eq(formFieldsTable.id, fields[i]!.id));
-            }
-        });
+        const target = tx ?? db;
+        for (let i = 0; i < fields.length; i++) {
+            await target
+                .update(formFieldsTable)
+                .set({ index: (i + 1).toString() })
+                .where(eq(formFieldsTable.id, fields[i]!.id));
+        }
     }
 
     public async getFields(formId: string) {

@@ -130,7 +130,7 @@ export function FieldSettings({ field, onUpdate, showFieldIcons, onUpdateShowFie
       )}
 
       {/* Options Editor */}
-      {(field.type === "SELECT" || field.type === "MULTI_SELECT") && (
+      {["SELECT", "MULTI_SELECT", "RADIO", "CHECKBOX", "YES_NO"].includes(field.type) && (
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
             Options

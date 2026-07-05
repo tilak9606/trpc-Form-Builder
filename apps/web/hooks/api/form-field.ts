@@ -38,7 +38,7 @@ export const useGetFields = (formId: string) => {
         isFetching,
         isLoading,
         status,
-    } = trpc.formField.getFields.useQuery({ formId });
+    } = trpc.formField.getFields.useQuery({ formId }, { enabled: !!formId });
 
     return {
         fields,

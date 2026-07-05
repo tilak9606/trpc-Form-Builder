@@ -2,6 +2,10 @@
   "name": "@repo/trpc",
   "version": "1.0.0",
   "private": true,
+  "exports": {
+    "./server": "./server/index.ts",
+    "./client": "./client/index.ts"
+  },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
@@ -11,6 +15,7 @@
   },
   "dependencies": {
     "@repo/services": "workspace:*",
+    "@repo/database": "workspace:*",
     "@trpc/client": "^11.8.1",
     "@trpc/server": "^11.8.1",
     "razorpay": "^2.9.6",

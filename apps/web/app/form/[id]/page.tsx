@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useParams } from "next/navigation";
-import { Loader2, X, FileIcon, Moon, Sun, Check } from "lucide-react";
+import { Loader2, X, FileIcon, Check } from "lucide-react";
 
-import { useGetFormWithFields } from "~/hooks/api/form";
+import { trpc } from "~/trpc/client";
 import { useCreateSubmission, useTrackEvent } from "~/hooks/api/form-submission";
 
 import { env } from "~/env";
@@ -30,7 +30,10 @@ export default function PublicFormPage() {
     const params = useParams();
     const formId = params?.id as string | undefined;
 
-    const { form, isLoading } = useGetFormWithFields(formId ?? "", "PUBLISHED");
+    const { data: form, isLoading } = trpc.form.getBySlug.useQuery(
+        { slug: formId ?? "" },
+        { enabled: !!formId },
+    );
     const { createSubmissionAsync, status } = useCreateSubmission();
     const { trackEventAsync } = useTrackEvent();
 
@@ -41,29 +44,14 @@ export default function PublicFormPage() {
     const [uploadingFields, setUploadingFields] = useState<Record<string, boolean>>({});
     const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
 
-    const [pageTheme, setPageTheme] = useState<"light" | "dark">("dark");
-
-    useEffect(() => {
-        const stored = localStorage.getItem("fb-response-theme");
-        if (stored === "light" || stored === "dark") {
-            setPageTheme(stored);
-        } else if (window.matchMedia("(prefers-color-scheme: light)").matches) {
-            setPageTheme("light");
-        }
-    }, []);
+    const isDark = false;
 
     // Track "view" event on form load
     useEffect(() => {
-        if (formId && form) {
-            trackEventAsync({ formId, eventType: "view" }).catch(() => {});
+        if (form?.id) {
+            trackEventAsync({ formId: form.id, eventType: "view" }).catch(() => {});
         }
-    }, [formId, form]);
-
-    const toggleTheme = () => {
-        const next = pageTheme === "dark" ? "light" : "dark";
-        setPageTheme(next);
-        localStorage.setItem("fb-response-theme", next);
-    };
+    }, [form?.id]);
 
     useEffect(() => {
         if (!form?.fields) return;
@@ -79,9 +67,9 @@ export default function PublicFormPage() {
 
     const handleChange = (fieldId: string, v: string) => {
         setValues((s) => ({ ...s, [fieldId]: v }));
-        if (!hasTrackedStart.current && formId) {
+        if (!hasTrackedStart.current && form?.id) {
             hasTrackedStart.current = true;
-            trackEventAsync({ formId, eventType: "start" }).catch(() => {});
+            trackEventAsync({ formId: form.id, eventType: "start" }).catch(() => {});
         }
     };
 
@@ -125,20 +113,19 @@ export default function PublicFormPage() {
         if (!form?.id) return;
         setSubmitError(null);
 
+        const emailField = form.fields?.find((f: any) => f.type === "EMAIL");
         const payload = {
             formId: form.id,
             values: Object.entries(values)
                 .filter(([fieldId]) => visibleFields.some((f: any) => f.id === fieldId))
                 .map(([fieldId, value]) => ({ fieldId, value })),
+            ...(emailField && values[emailField.id] ? { respondentEmail: values[emailField.id] } : {}),
         };
 
         try {
             await createSubmissionAsync(payload);
-            if (formId) {
-                trackEventAsync({ formId, eventType: "submit" }).catch(() => {});
-            }
-            if (form.thankYouUrl) {
-                window.location.href = form.thankYouUrl;
+            if ((form as any)?.settings?.redirectUrl) {
+                window.location.href = (form as any).settings.redirectUrl;
             } else {
                 setSubmitted(true);
             }
@@ -150,7 +137,7 @@ export default function PublicFormPage() {
 
     if (isLoading) {
         return (
-            <div className={`min-h-screen flex items-center justify-center ${pageTheme === "dark" ? "bg-[#0F1117]" : "bg-[#F0EDE8]"}`}>
+            <div className="min-h-screen flex items-center justify-center bg-[#0F1117]">
                 <Loader2 className="w-6 h-6 animate-spin text-[#6C7CF5]" />
             </div>
         );
@@ -158,7 +145,7 @@ export default function PublicFormPage() {
 
     if (!form) {
         return (
-            <div className={`min-h-screen flex items-center justify-center ${pageTheme === "dark" ? "bg-[#0F1117] text-[#F9FAFB]" : "bg-[#F0EDE8] text-[#111827]"}`}>
+            <div className="min-h-screen flex items-center justify-center bg-[#0F1117] text-[#F9FAFB]">
                 <p className="text-sm opacity-60">Form not found.</p>
             </div>
         );
@@ -166,26 +153,36 @@ export default function PublicFormPage() {
 
     if (form.status === "CLOSED") {
         return (
-            <div className={`min-h-screen flex items-center justify-center ${pageTheme === "dark" ? "bg-[#0F1117] text-[#F9FAFB]" : "bg-[#F0EDE8] text-[#111827]"}`}>
+            <div className="min-h-screen flex items-center justify-center bg-[#0F1117] text-[#F9FAFB]">
                 <p className="text-sm opacity-60">This form is closed.</p>
             </div>
         );
     }
 
-    const isDark = pageTheme === "dark";
+    function adjustColor(hex: string, amount: number): string {
+        hex = hex.replace("#", "");
+        if (hex.length === 3) hex = hex.split("").map(c => c + c).join("");
+        const num = parseInt(hex, 16);
+        const r = Math.min(255, Math.max(0, (num >> 16) + amount));
+        const g = Math.min(255, Math.max(0, ((num >> 8) & 0x00FF) + amount));
+        const b = Math.min(255, Math.max(0, (num & 0x0000FF) + amount));
+        return `#${(r << 16 | g << 8 | b).toString(16).padStart(6, "0")}`;
+    }
 
-    const themeBg = isDark ? (form.themeBackgroundColor || "#0F1117") : "#F0EDE8";
-    const themeSurface = isDark ? "#1A1D27" : "#FAF8F5";
-    const themeText = isDark ? (form.themeTextColor || "#F9FAFB") : "#111827";
-    const themeLabel = isDark ? (form.themeLabelColor || "#F9FAFB") : "#111827";
-    const themePrimary = form.themePrimaryColor || "#6C7CF5";
-    const themeFont = form.themeFontFamily || "Inter";
-    const themeRadius = form.themeBorderRadius || "10px";
-    const themeBtnText = form.themeButtonText || "Submit";
-    const themeBtnTextColor = form.themeButtonTextColor || "#ffffff";
-    const themeBorder = isDark ? "#2D3148" : "#E5E7EB";
-    const themeMuted = isDark ? "#9CA3AF" : "#6B7280";
-    const themeSurfaceHover = isDark ? "#2D3148" : "#E5E7EB";
+    const customTheme = (form as any)?.settings?.customTheme;
+    const themePrimary = customTheme?.colors?.accent || "#6C7CF5";
+    const themeFont = customTheme?.fonts?.body || "Inter";
+    const themeRadius = customTheme?.shape?.radius ? `${customTheme.shape.radius}px` : "10px";
+    const themeBtnText = (form as any)?.settings?.successMessage || "Submit";
+    const themeBtnTextColor = customTheme?.colors?.accentForeground || "#ffffff";
+
+    const themeBg = customTheme?.colors?.background || (isDark ? "#0F1117" : "#F0EDE8");
+    const themeText = customTheme?.colors?.foreground || (isDark ? "#F9FAFB" : "#111827");
+    const themeLabel = customTheme?.colors?.foregroundSoft || themeText;
+    const themeSurface = adjustColor(themeBg, isDark ? 15 : -8);
+    const themeBorder = adjustColor(themeBg, isDark ? 30 : -20);
+    const themeMuted = adjustColor(themeText, isDark ? -30 : 30);
+    const themeSurfaceHover = adjustColor(themeBg, isDark ? 30 : -15);
 
     return (
         <main
@@ -193,28 +190,22 @@ export default function PublicFormPage() {
             style={{ backgroundColor: themeBg, color: themeText, fontFamily: themeFont }}
         >
             <div className="mx-auto max-w-2xl">
+                {form.coverImageUrl ? (
+                    <div className="mb-6 rounded-xl overflow-hidden" style={{ borderRadius: themeRadius }}>
+                        <img src={form.coverImageUrl} alt="Form cover" className="w-full h-48 object-cover" />
+                    </div>
+                ) : null}
+
                 <div className="flex items-center justify-between mb-6">
                     <div className="flex-1">
-                        {form.themeLogoUrl ? (
-                            <img src={form.themeLogoUrl} alt="Logo" className="h-10 object-contain mb-4" />
+                        {(customTheme?.logoUrl || (form as any)?.settings?.logoUrl) ? (
+                            <img src={customTheme?.logoUrl || (form as any)?.settings?.logoUrl} alt="Logo" className="h-10 object-contain mb-4" />
                         ) : null}
                         <h1 className="text-2xl font-semibold mb-1">{form.title}</h1>
                         {form.description ? (
                             <p className="text-sm" style={{ color: themeMuted }}>{form.description}</p>
                         ) : null}
                     </div>
-                    <button
-                        onClick={toggleTheme}
-                        className="flex items-center justify-center w-10 h-10 rounded-full transition-colors shrink-0 ml-4 border"
-                        style={{
-                            backgroundColor: themeSurface,
-                            color: themeText,
-                            borderColor: themeBorder,
-                        }}
-                        aria-label="Toggle theme"
-                    >
-                        {isDark ? <Sun className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
-                    </button>
                 </div>
 
                 {submitted ? (
@@ -338,6 +329,73 @@ export default function PublicFormPage() {
                                                             border: `1.5px solid ${checked ? themePrimary : themeBorder}`,
                                                             borderRadius: themeRadius,
                                                             color: themeLabel,
+                                                        }}
+                                                    >
+                                                        <div
+                                                            className="w-4 h-4 rounded flex items-center justify-center shrink-0 transition-colors"
+                                                            style={{
+                                                                backgroundColor: checked ? themePrimary : "transparent",
+                                                                border: checked ? "none" : `1.5px solid ${themeBorder}`,
+                                                            }}
+                                                        >
+                                                            {checked && <Check className="w-3 h-3 text-white" />}
+                                                        </div>
+                                                        <span className="text-sm">{opt}</span>
+                                                    </label>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+
+                                    {f.type === "RADIO" && (
+                                        <div className="space-y-2">
+                                            {(f.options || []).map((opt: string) => {
+                                                const checked = (values[f.id] ?? "") === opt;
+                                                return (
+                                                    <label
+                                                        key={opt}
+                                                        className="flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors"
+                                                        style={{
+                                                            backgroundColor: checked ? `${themePrimary}12` : themeSurface,
+                                                            border: `1.5px solid ${checked ? themePrimary : themeBorder}`,
+                                                            borderRadius: themeRadius,
+                                                            color: themeLabel,
+                                                        }}
+                                                        onClick={() => handleChange(f.id, opt)}
+                                                    >
+                                                        <div
+                                                            className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 transition-colors"
+                                                            style={{
+                                                                border: checked ? `4px solid ${themePrimary}` : `1.5px solid ${themeBorder}`,
+                                                            }}
+                                                        />
+                                                        <span className="text-sm">{opt}</span>
+                                                    </label>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+
+                                    {f.type === "CHECKBOX" && (
+                                        <div className="space-y-2">
+                                            {(f.options || []).map((opt: string) => {
+                                                const checked = (values[f.id] ?? "").split(",").includes(opt);
+                                                return (
+                                                    <label
+                                                        key={opt}
+                                                        className="flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors"
+                                                        style={{
+                                                            backgroundColor: checked ? `${themePrimary}12` : themeSurface,
+                                                            border: `1.5px solid ${checked ? themePrimary : themeBorder}`,
+                                                            borderRadius: themeRadius,
+                                                            color: themeLabel,
+                                                        }}
+                                                        onClick={() => {
+                                                            const current = (values[f.id] ?? "").split(",").filter(Boolean);
+                                                            const next = checked
+                                                                ? current.filter((v: string) => v !== opt)
+                                                                : [...current, opt];
+                                                            handleChange(f.id, next.join(","));
                                                         }}
                                                     >
                                                         <div

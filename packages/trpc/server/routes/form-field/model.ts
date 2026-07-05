@@ -26,6 +26,13 @@ export const fieldConditionSchema = z.object({
     targetPage: z.number().int().min(1).optional().describe("Page to skip to when condition is met"),
 });
 
+export const fieldConditionOutputSchema = z.object({
+    fieldId: z.string(),
+    operator: z.string(),
+    value: z.string(),
+    targetPage: z.number().int().min(1).optional(),
+}).passthrough();
+
 export const createFieldInputModel = z.object({
     label: z.string().max(100).describe("Display label for the field"),
     type: fieldTypeEnum.describe("Type of the field"),
@@ -37,6 +44,8 @@ export const createFieldInputModel = z.object({
     validation: z.object({
         min: z.number().optional(),
         max: z.number().optional(),
+        minLength: z.number().optional(),
+        maxLength: z.number().optional(),
         pattern: z.string().optional(),
         icon: z.string().optional(),
     }).nullable().optional().describe("Validation rules"),
@@ -58,11 +67,11 @@ export const getFieldsInputModel = z.object({
 
 export const fieldOutputModel = z.object({
     id: z.string(),
-    formId: z.uuid().nullable(),
+    formId: z.string().nullable(),
     label: z.string(),
     labelKey: z.string(),
-    description: z.string().nullable(),
-    placeholder: z.string().nullable(),
+    description: z.string().nullable().optional(),
+    placeholder: z.string().nullable().optional(),
     isRequired: z.boolean(),
     index: z.string(),
     type: fieldTypeEnum,
@@ -71,16 +80,18 @@ export const fieldOutputModel = z.object({
 });
 
 export const fieldWithDetailsOutputModel = fieldOutputModel.extend({
-    options: z.array(z.string()).nullable(),
-    maxFileSize: z.number().nullable(),
-    allowedFileTypes: z.array(z.string()).nullable(),
+    options: z.array(z.string()).nullable().optional(),
+    maxFileSize: z.number().nullable().optional(),
+    allowedFileTypes: z.array(z.string()).nullable().optional(),
     validation: z.object({
         min: z.number().optional(),
         max: z.number().optional(),
+        minLength: z.number().optional(),
+        maxLength: z.number().optional(),
         pattern: z.string().optional(),
         icon: z.string().optional(),
-    }).nullable(),
-    condition: fieldConditionSchema.nullable(),
+    }).nullable().optional(),
+    condition: fieldConditionOutputSchema.nullable().optional(),
     page: z.number(),
 });
 
@@ -98,6 +109,8 @@ export const updateFieldInputModel = z.object({
     validation: z.object({
         min: z.number().optional(),
         max: z.number().optional(),
+        minLength: z.number().optional(),
+        maxLength: z.number().optional(),
         pattern: z.string().optional(),
         icon: z.string().optional(),
     }).nullable().optional().describe("New validation rules"),

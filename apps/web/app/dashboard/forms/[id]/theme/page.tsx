@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Palette, Sparkles, Check, Save, ArrowRight, Sun, Moon } from "lucide-react";
+import { Palette, Sparkles, Check, Save, ArrowRight } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -111,37 +111,37 @@ export default function ThemePage() {
   const router = useRouter();
   const formId = params?.id as string | undefined;
 
-  const { form, isLoading } = useGetFormWithFields(formId ?? "", "DRAFT");
+  const { form, isLoading } = useGetFormWithFields(formId);
   const { updateFormAsync, isPending } = useUpdateForm();
   const store = useFormEditorStore();
 
   const [activeCategory, setActiveCategory] = React.useState("all");
-  const [presetMode, setPresetMode] = React.useState<"light" | "dark">("light");
 
   // Initialize store from API data
   React.useEffect(() => {
     if (form && store.formId !== formId) {
+      const customTheme = (form as any)?.settings?.customTheme;
       store.setFormData({
         formId: formId!,
         title: form.title ?? "",
         description: form.description ?? "",
         fields: (form.fields ?? []) as any,
         coverImageUrl: null,
-        customTheme: {
+        customTheme: customTheme ?? {
           colors: {
-            background: form.themeBackgroundColor ?? "#000000",
-            foreground: form.themeTextColor ?? "#ffffff",
-            surface: form.themeBackgroundColor ?? "#000000",
-            accent: form.themePrimaryColor ?? "#3b82f6",
-            accentForeground: form.themeButtonTextColor ?? "#ffffff",
+            background: "#000000",
+            foreground: "#ffffff",
+            surface: "#000000",
+            accent: "#3b82f6",
+            accentForeground: "#ffffff",
             border: "#e5e7eb",
           },
           fonts: {
-            display: form.themeFontFamily ?? "Inter",
-            body: form.themeFontFamily ?? "Inter",
+            display: "Inter",
+            body: "Inter",
           },
           shape: {
-            radius: parseFloat(form.themeBorderRadius ?? "0.5rem") || 10,
+            radius: 10,
           },
         },
       });
@@ -187,14 +187,9 @@ export default function ThemePage() {
     try {
       await updateFormAsync({
         formId,
-        themePrimaryColor: store.customTheme?.colors?.accent,
-        themeBackgroundColor: store.customTheme?.colors?.background,
-        themeTextColor: store.customTheme?.colors?.foreground,
-        themeLabelColor: store.customTheme?.colors?.foreground,
-        themeFontFamily: store.customTheme?.fonts?.body,
-        themeBorderRadius: `${store.customTheme?.shape?.radius ?? 10}px`,
-        themeButtonText: form?.themeButtonText ?? "Submit",
-        themeButtonTextColor: store.customTheme?.colors?.accentForeground ?? "#ffffff",
+        settings: {
+          customTheme: store.customTheme,
+        },
       });
       store.markSaved();
       toast.success("Draft saved.");

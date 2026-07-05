@@ -23,6 +23,7 @@ import { FieldPalette } from "~/components/form-builder/field-palette";
 import { FormCanvas } from "~/components/form-builder/form-canvas";
 import { FieldInspector } from "~/components/form-builder/field-inspector";
 import { useFormEditorStore } from "~/lib/stores/form-editor-store";
+import { mapServerFieldsToEditorFields } from "~/lib/form-field-mapper";
 
 import { toast } from "~/lib/toast";
 import { handleTrpcError } from "~/lib/api-error";
@@ -33,8 +34,8 @@ export default function FieldsPage() {
   const router = useRouter();
   const formId = params.id;
 
-  const { data: form, isLoading, refetch } = trpc.form.getFormWithFields.useQuery(
-    { formId, status: "DRAFT" },
+  const { data: form, isLoading, refetch } = trpc.form.getByIdWithFields.useQuery(
+    { formId },
     { enabled: !!formId }
   );
 
@@ -51,21 +52,22 @@ export default function FieldsPage() {
   const duplicateFieldMutation = trpc.formField.duplicateField.useMutation();
   const reorderFieldMutation = trpc.formField.reorderFields.useMutation();
 
+  // Initialize store from API data on first load, then re-sync title/description when server data changes
+  const lastServerTitle = React.useRef<string>("");
+  const lastServerDesc = React.useRef<string>("");
+
   React.useEffect(() => {
-    if (form && store.formId !== formId) {
-      const formData = form as any;
-      const mappedFields = (formData.fields ?? []).map((f: any) => ({
-        id: f.id,
-        type: f.type,
-        label: f.label,
-        placeholder: f.placeholder ?? undefined,
-        helpText: f.description ?? undefined,
-        required: f.isRequired ?? false,
-        pageNumber: f.page,
-        options: f.options?.length ? f.options.map((o: string) => ({ label: o, value: o })) : undefined,
-        validations: f.validation ?? undefined,
-        settings: undefined,
-      }));
+    if (!form) return;
+    const formData = form as any;
+
+    if (store.formId !== formId) {
+      // First mount: full hydrate.
+      // Bug #2 fix: this used to re-implement the server->editor field mapping inline,
+      // as a second, independent copy of the same transform in form-field-mapper.ts.
+      // Two copies of one mapping is exactly how they drift out of sync (see layout.tsx's
+      // publish-flow fallback, which used the *other* shape). Now both call the same
+      // function, so there is exactly one place that defines "server field -> editor field".
+      const mappedFields = mapServerFieldsToEditorFields(formData.fields);
 
       store.setFormData({
         formId,
@@ -77,8 +79,21 @@ export default function FieldsPage() {
         customTheme: formData.settings?.customTheme,
         showFieldIcons: formData.settings?.showFieldIcons ?? false,
       });
+
+      lastServerTitle.current = formData.title ?? "";
+      lastServerDesc.current = formData.description ?? "";
+    } else {
+      // Subsequent query updates: sync title/description from server (settings page is source of truth)
+      const serverTitle = formData.title ?? "";
+      const serverDesc = formData.description ?? "";
+      if (lastServerTitle.current !== serverTitle || lastServerDesc.current !== serverDesc) {
+        lastServerTitle.current = serverTitle;
+        lastServerDesc.current = serverDesc;
+        store.setTitle(serverTitle);
+        store.setDescription(serverDesc);
+      }
     }
-  }, [form, formId, store]);
+  }, [form, formId]);
 
   React.useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -98,6 +113,7 @@ export default function FieldsPage() {
       await saveForm();
       toast.success("Draft saved.");
     } catch (err) {
+      console.error("Save draft error:", err);
       handleTrpcError(err);
     } finally {
       setIsSaving(false);
@@ -112,6 +128,7 @@ export default function FieldsPage() {
       toast.success("Form saved!");
       router.push(`/dashboard/forms/${formId}/theme`);
     } catch (err) {
+      console.error("Save & continue error:", err);
       handleTrpcError(err);
     } finally {
       setIsSaving(false);
@@ -134,11 +151,22 @@ export default function FieldsPage() {
   const saveForm = async () => {
     if (!formId) return;
 
-    await updateFormMutation.mutateAsync({
-      formId,
-      title: store.title,
-      description: store.description || undefined,
-    });
+    try {
+      await updateFormMutation.mutateAsync({
+        formId,
+        title: store.title,
+        description: store.description || undefined,
+        coverImageUrl: store.coverImageUrl,
+        settings: {
+          ...((form as any)?.settings || {}),
+          showFieldIcons: store.showFieldIcons,
+          customTheme: store.customTheme,
+        },
+      });
+    } catch (err) {
+      console.error("Step 1 - update form failed:", err);
+      throw err;
+    }
 
     const initialFields = (form as any)?.fields || [];
     const deletedIds = initialFields
@@ -146,7 +174,12 @@ export default function FieldsPage() {
       .filter((id: string) => !store.fields.find((f) => f.id === id));
 
     for (const id of deletedIds) {
-      await deleteFieldMutation.mutateAsync({ id, formId });
+      try {
+        await deleteFieldMutation.mutateAsync({ id, formId });
+      } catch (err) {
+        console.error(`Step 2 - delete field ${id} failed:`, err);
+        throw err;
+      }
     }
 
     const createPromises = store.fields
@@ -182,16 +215,33 @@ export default function FieldsPage() {
         }),
       );
 
-    const created = await Promise.all(createPromises);
-    await Promise.all(updatePromises);
+    let created: { tempId: string; realId: string }[];
+    try {
+      created = await Promise.all(createPromises);
+    } catch (err) {
+      console.error("Step 3 - create fields failed:", err);
+      throw err;
+    }
 
-    const idMap = new Map(created.map((c) => [c.tempId, c.realId]));
+    try {
+      await Promise.all(updatePromises);
+    } catch (err) {
+      console.error("Step 4 - update fields failed:", err);
+      throw err;
+    }
+
+    const idMap = new Map(created!.map((c) => [c.tempId, c.realId]));
     const finalIds = store.fields.map((f) => idMap.get(f.id) || f.id);
 
-    await reorderFieldMutation.mutateAsync({
-      formId,
-      fieldIds: finalIds,
-    });
+    try {
+      await reorderFieldMutation.mutateAsync({
+        formId,
+        fieldIds: finalIds,
+      });
+    } catch (err) {
+      console.error("Step 5 - reorder fields failed:", err);
+      throw err;
+    }
 
     store.markSaved();
     refetch();
@@ -312,6 +362,40 @@ export default function FieldsPage() {
             <ArrowRight className="size-3.5 ml-1.5" />
           </Button>
         </div>
+      </div>
+
+      {/* Page tabs */}
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border bg-background shrink-0 overflow-x-auto">
+        {Array.from({ length: store.pageCount }, (_, i) => i + 1).map((pageNum) => (
+          <button
+            key={pageNum}
+            onClick={() => store.setCurrentPage(pageNum)}
+            className={`flex items-center gap-1 px-3 py-1 rounded text-sm font-medium transition-colors shrink-0 ${
+              store.currentPage === pageNum
+                ? "bg-muted"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Page {pageNum}
+            {store.pageCount > 1 && (
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  store.removePage(pageNum);
+                }}
+                className="inline-flex items-center justify-center rounded-full hover:bg-destructive/10 hover:text-destructive size-4 text-xs cursor-pointer"
+              >
+                ×
+              </span>
+            )}
+          </button>
+        ))}
+        <button
+          onClick={() => store.addPage()}
+          className="flex items-center justify-center rounded px-2.5 py-1 text-sm font-medium text-muted-foreground hover:text-foreground shrink-0"
+        >
+          +
+        </button>
       </div>
 
       {/* 3-panel editor */}

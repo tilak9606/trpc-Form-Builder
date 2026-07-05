@@ -2,6 +2,7 @@ const store = new Map<string, { count: number; resetAt: number }>();
 
 const DEFAULT_MAX = 5;
 const DEFAULT_WINDOW_MS = 60_000;
+const MAX_STORE_SIZE = 10_000;
 
 // Clean expired entries every 60s
 setInterval(() => {
@@ -20,6 +21,10 @@ export function checkRateLimit(
     const entry = store.get(key);
 
     if (!entry || entry.resetAt <= now) {
+        if (store.size >= MAX_STORE_SIZE) {
+            const oldestKey = store.entries().next().value?.[0];
+            if (oldestKey) store.delete(oldestKey);
+        }
         const resetAt = now + windowMs;
         store.set(key, { count: 1, resetAt });
         return { allowed: true, remaining: max - 1, resetAt };

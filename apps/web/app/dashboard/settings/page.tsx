@@ -3,14 +3,19 @@
 import { useSession, signOut } from "~/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { User, Mail, Shield, LogOut, Moon, Sun } from "lucide-react";
+import { User, Mail, Shield, LogOut, Moon, Sun, CreditCard, Sparkles, Check } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useUserPlan } from "~/hooks/api/user";
+import { useSubscriptionStatus } from "~/hooks/api/payment";
+import { CheckoutButton } from "~/components/checkout-button";
 
 export default function SettingsPage() {
     const { data: session, isPending } = useSession();
     const router = useRouter();
     const [signingOut, setSigningOut] = useState(false);
     const { theme, setTheme } = useTheme();
+    const { plan: userPlan } = useUserPlan();
+    const { subscription } = useSubscriptionStatus();
 
     if (isPending) {
         return (
@@ -107,6 +112,56 @@ export default function SettingsPage() {
                                 }`}
                             />
                         </button>
+                    </div>
+                </div>
+
+                <div className="rounded-2xl border border-border bg-card p-6">
+                    <h2 className="text-sm font-medium mb-4 text-foreground">Billing</h2>
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <CreditCard className="h-4 w-4 text-muted-foreground" />
+                                <div>
+                                    <span className="text-sm text-foreground">Current Plan</span>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                        {subscription?.status === "active" ? "Your subscription is active" : "No active subscription"}
+                                    </p>
+                                </div>
+                            </div>
+                            <span className="text-sm font-medium text-foreground capitalize">
+                                {userPlan?.plan || "free"}
+                            </span>
+                        </div>
+                        {subscription?.currentPeriodEnd && (
+                            <div className="flex items-center justify-between py-2">
+                                <span className="text-sm text-muted-foreground">Renews</span>
+                                <span className="text-sm text-foreground">
+                                    {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
+                                </span>
+                            </div>
+                        )}
+                        {(userPlan?.plan === "free" || !userPlan?.plan) && (
+                            <div className="pt-2 border-t border-border">
+                                <p className="text-xs text-muted-foreground mb-3">
+                                    Upgrade to unlock unlimited forms, custom themes, webhooks, and more.
+                                </p>
+                                <CheckoutButton
+                                    plan="pro"
+                                    className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+                                >
+                                    <Sparkles className="w-4 h-4" />
+                                    Upgrade to Pro — ₹199/month
+                                </CheckoutButton>
+                            </div>
+                        )}
+                        {(userPlan?.plan === "pro" || userPlan?.plan === "enterprise") && (
+                            <div className="pt-2 border-t border-border">
+                                <div className="flex items-center gap-2 text-sm text-success">
+                                    <Check className="w-4 h-4" />
+                                    <span>You&apos;re on the <span className="font-medium capitalize">{userPlan.plan}</span> plan</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 

@@ -18,7 +18,7 @@ import {
 } from "@dnd-kit/sortable";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Trash2, ChevronDown, Copy } from "lucide-react";
+import { GripVertical, Trash2, ChevronDown, Copy, Plus, X } from "lucide-react";
 import { FIELD_TYPE_ICON_MAP } from "./field-type-picker";
 import { cn } from "~/lib/utils";
 import { env } from "~/env";
@@ -345,18 +345,48 @@ function FieldPreviewInput({ field, onUpdateField }: { field: EditorField; onUpd
       );
     case "CHECKBOX":
       return (
-        <div className="flex items-center gap-2">
-          <div className="size-4 rounded border border-border" />
-          {onUpdateField ? (
-             <input
-               className={cn("text-sm text-muted-foreground bg-transparent border-none p-0 focus:ring-0", editableClass)}
-               placeholder={defaultPlaceholder || "Checkbox"}
-               value={field.placeholder || ""}
-               onChange={(e) => onUpdateField(field.id, { placeholder: e.target.value })}
-             />
-          ) : (
-            <span className="text-sm text-muted-foreground">{placeholder}</span>
-          )}
+        <div className="space-y-3 mt-1">
+          <div className={cn("space-y-2 pl-3 border-l-2 border-border/30", onUpdateField ? "" : "pointer-events-none")}>
+            {(field.options ?? []).length > 0 ? (
+              (field.options ?? []).map((opt: any, i: number) => (
+                <div key={i} className={cn("flex items-center gap-2", onUpdateField && "group/opt")}>
+                  <div className="size-4 rounded border border-border shrink-0 bg-background" />
+                  {onUpdateField ? (
+                    <div className="flex items-center gap-1 flex-1 min-w-0">
+                      <input
+                        className="flex-1 text-sm text-foreground bg-transparent border border-transparent hover:border-border/50 focus:border-border rounded px-1 py-0.5 outline-none transition-colors min-w-0"
+                        value={opt.label}
+                        onChange={(e) => {
+                          const newOptions = [...(field.options ?? [])];
+                          newOptions[i] = { ...newOptions[i], label: e.target.value, value: e.target.value };
+                          onUpdateField(field.id, { options: newOptions });
+                        }}
+                      />
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onUpdateField(field.id, { options: (field.options ?? []).filter((_: any, j: number) => j !== i) }); }}
+                        className="text-muted-foreground hover:text-destructive shrink-0 p-0.5 opacity-0 group-hover/opt:opacity-100 transition-opacity"
+                        aria-label={`Remove ${opt.label}`}
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-sm text-foreground">{opt.label}</span>
+                  )}
+                </div>
+              ))
+            ) : (
+              <span className="text-sm text-muted-foreground">No options added yet</span>
+            )}
+            {onUpdateField && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onUpdateField(field.id, { options: [...(field.options ?? []), { label: `Option ${(field.options ?? []).length + 1}`, value: `Option ${(field.options ?? []).length + 1}` }] }); }}
+                className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1"
+              >
+                <Plus className="size-3" /> Add option
+              </button>
+            )}
+          </div>
         </div>
       );
     case "RATING":
@@ -369,6 +399,7 @@ function FieldPreviewInput({ field, onUpdateField }: { field: EditorField; onUpd
       );
     case "SELECT":
     case "MULTI_SELECT":
+    case "RADIO":
       return (
         <div className="space-y-3 mt-1">
           <div className={cn(baseClass, "h-10 flex justify-between items-center")}>
@@ -384,16 +415,47 @@ function FieldPreviewInput({ field, onUpdateField }: { field: EditorField; onUpd
             )}
             <ChevronDown className="size-4 opacity-50 pointer-events-none" />
           </div>
-          {field.options && field.options.length > 0 && (
-            <div className="space-y-2 pl-3 border-l-2 border-border/30 pointer-events-none">
-              {field.options.map((opt, i: number) => (
-                <div key={i} className="flex items-center gap-2">
-                  <div className={cn("size-4 border border-border shrink-0 bg-background", type === "SELECT" ? "rounded-full" : "rounded")} />
-                  <span className="text-sm text-foreground">{opt.label}</span>
+          <div className={cn("space-y-2 pl-3 border-l-2 border-border/30", onUpdateField ? "" : "pointer-events-none")}>
+            {(field.options ?? []).length > 0 ? (
+              (field.options ?? []).map((opt, i: number) => (
+                <div key={i} className={cn("flex items-center gap-2", onUpdateField && "group/opt")}>
+                  <div className={cn("size-4 border border-border shrink-0 bg-background", type === "SELECT" || type === "RADIO" ? "rounded-full" : "rounded")} />
+                  {onUpdateField ? (
+                    <div className="flex items-center gap-1 flex-1 min-w-0">
+                      <input
+                        className="flex-1 text-sm text-foreground bg-transparent border border-transparent hover:border-border/50 focus:border-border rounded px-1 py-0.5 outline-none transition-colors min-w-0"
+                        value={opt.label}
+                        onChange={(e) => {
+                          const newOptions = [...(field.options ?? [])];
+                          newOptions[i] = { ...newOptions[i], label: e.target.value, value: e.target.value };
+                          onUpdateField(field.id, { options: newOptions });
+                        }}
+                      />
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onUpdateField(field.id, { options: (field.options ?? []).filter((_: any, j: number) => j !== i) }); }}
+                        className="text-muted-foreground hover:text-destructive shrink-0 p-0.5 opacity-0 group-hover/opt:opacity-100 transition-opacity"
+                        aria-label={`Remove ${opt.label}`}
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-sm text-foreground">{opt.label}</span>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
+              ))
+            ) : (
+              <span className="text-sm text-muted-foreground">No options added yet</span>
+            )}
+            {onUpdateField && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onUpdateField(field.id, { options: [...(field.options ?? []), { label: `Option ${(field.options ?? []).length + 1}`, value: `Option ${(field.options ?? []).length + 1}` }] }); }}
+                className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1"
+              >
+                <Plus className="size-3" /> Add option
+              </button>
+            )}
+          </div>
         </div>
       );
     case "DATE":

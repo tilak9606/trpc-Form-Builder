@@ -1,6 +1,7 @@
 import { db, eq, and } from "@repo/database";
 import { foldersTable } from "@repo/database/models/folder";
 import { formsTable } from "@repo/database/models/form";
+import { TRPCError } from "@trpc/server";
 import {
     createFolderInput,
     type CreateFolderInputType,
@@ -24,7 +25,7 @@ export default class FolderService {
             .returning({ id: foldersTable.id, name: foldersTable.name });
 
         if (!result || result.length === 0)
-            throw new Error("Something went wrong while creating the folder");
+            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Something went wrong while creating the folder" });
 
         return result[0]!;
     }
@@ -59,7 +60,7 @@ export default class FolderService {
             .returning({ id: foldersTable.id });
 
         if (!result || result.length === 0)
-            throw new Error(`Folder with ID ${data.id} not found`);
+            throw new TRPCError({ code: "NOT_FOUND", message: `Folder with ID ${data.id} not found` });
 
         return result[0]!;
     }
@@ -67,20 +68,22 @@ export default class FolderService {
     public async deleteFolder(payload: DeleteFolderInputType) {
         const data = await deleteFolderInput.parseAsync(payload);
 
-        await db
-            .update(formsTable)
-            .set({ folderId: null })
-            .where(eq(formsTable.folderId, data.id));
+        return await db.transaction(async (tx) => {
+            await tx
+                .update(formsTable)
+                .set({ folderId: null })
+                .where(eq(formsTable.folderId, data.id));
 
-        const result = await db
-            .delete(foldersTable)
-            .where(and(eq(foldersTable.id, data.id), eq(foldersTable.userId, data.userId)))
-            .returning({ id: foldersTable.id });
+            const result = await tx
+                .delete(foldersTable)
+                .where(and(eq(foldersTable.id, data.id), eq(foldersTable.userId, data.userId)))
+                .returning({ id: foldersTable.id });
 
-        if (!result || result.length === 0)
-            throw new Error(`Folder with ID ${data.id} not found`);
+            if (!result || result.length === 0)
+                throw new TRPCError({ code: "NOT_FOUND", message: `Folder with ID ${data.id} not found` });
 
-        return result[0]!;
+            return result[0]!;
+        });
     }
 
     public async moveFormToFolder(payload: MoveFormToFolderInputType) {
@@ -92,7 +95,7 @@ export default class FolderService {
                 .from(foldersTable)
                 .where(and(eq(foldersTable.id, data.folderId), eq(foldersTable.userId, data.userId)));
             if (!folder || folder.length === 0)
-                throw new Error("Target folder not found or access denied");
+                throw new TRPCError({ code: "NOT_FOUND", message: "Target folder not found or access denied" });
         }
 
         const result = await db
@@ -102,7 +105,7 @@ export default class FolderService {
             .returning({ id: formsTable.id });
 
         if (!result || result.length === 0)
-            throw new Error("Form not found or access denied");
+            throw new TRPCError({ code: "NOT_FOUND", message: "Form not found or access denied" });
 
         return { success: true };
     }

@@ -31,6 +31,8 @@ export const createFieldInput = z.object({
     validation: z.object({
         min: z.number().optional(),
         max: z.number().optional(),
+        minLength: z.number().optional(),
+        maxLength: z.number().optional(),
         pattern: z.string().optional(),
         icon: z.string().optional(),
     }).nullable().optional().describe("Validation rules"),
@@ -66,6 +68,8 @@ export const updateFieldInput = z.object({
     validation: z.object({
         min: z.number().optional(),
         max: z.number().optional(),
+        minLength: z.number().optional(),
+        maxLength: z.number().optional(),
         pattern: z.string().optional(),
         icon: z.string().optional(),
     }).nullable().optional().describe("New validation rules"),

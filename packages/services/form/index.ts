@@ -1,389 +1,436 @@
-import { db, eq, and, isNull, count as drizzleCount } from "@repo/database";
+import { db, eq, and, sql } from "@repo/database";
 import { formsTable } from "@repo/database/models/form";
 import { formFieldsTable } from "@repo/database/models/form-field";
 import { formSubmissionsTable } from "@repo/database/models/form-submission";
-
-import {
-    createFormInput,
-    type CreateFormInputType,
-    listFormsByUserIdInput,
-    type ListFormsByUserIdInputType,
-    updateFormInput,
-    type UpdateFormInputType,
-    deleteFormInput,
-    type DeleteFormInputType,
-    getFormBySlugInput,
-    type GetFormBySlugInputType,
-    formExportSchema,
-    importFormInput,
-    type ImportFormInputType,
-} from "./model";
-
-function slugify(text: string): string {
-    return text
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "")
-        .slice(0, 100);
-}
-
-function generateSlug(title: string, suffix?: string): string {
-    let slug = slugify(title);
-    if (!slug) slug = "untitled";
-    if (suffix) slug = `${slug}-${suffix}`;
-    return slug;
-}
+import { formAnalyticsEventsTable } from "@repo/database/models/form-analytics-event";
+import { usersTable } from "@repo/database/models/user";
+import { TRPCError } from "@trpc/server";
+import { SlugService } from "@repo/services/slug";
+const slugService = new SlugService();
+import { PLAN_LIMITS, type UserPlan } from "@repo/database/constants/user-plan";
 
 export default class FormService {
-    public async createForm(payload: CreateFormInputType) {
-        const data = await createFormInput.parseAsync(payload);
-        const slug = data.slug || generateSlug(data.title, Date.now().toString(36));
+    public async getById(formId: string, userId: string) {
+        const [form] = await db.select().from(formsTable).where(eq(formsTable.id, formId)).limit(1);
 
-        const result = await db
-            .insert(formsTable)
-            .values({
-                title: data.title,
-                description: data.description,
-                slug,
-                createdBy: data.createdBy,
-                folderId: data.folderId ?? null,
-            })
-            .returning({
-                id: formsTable.id,
-                slug: formsTable.slug,
-            });
-
-        if (!result || result.length === 0 || !result[0]?.id)
-            throw new Error("Something went wrong while creating the form");
-
-        return {
-            id: result[0].id,
-            slug: result[0].slug,
-        };
-    }
-
-    public async updateForm(payload: UpdateFormInputType) {
-        const data = await updateFormInput.parseAsync(payload);
-
-        const updateData: Record<string, any> = {};
-        if (data.title !== undefined) updateData.title = data.title;
-        if (data.description !== undefined) updateData.description = data.description;
-        if (data.slug !== undefined) updateData.slug = data.slug;
-        if (data.status !== undefined) updateData.status = data.status;
-        if (data.folderId !== undefined) updateData.folderId = data.folderId;
-        if (data.notifyEmail !== undefined) updateData.notifyEmail = data.notifyEmail;
-        if (data.notifyEmailTo !== undefined) updateData.notifyEmailTo = data.notifyEmailTo;
-        if (data.themePrimaryColor !== undefined) updateData.themePrimaryColor = data.themePrimaryColor;
-        if (data.themeBackgroundColor !== undefined) updateData.themeBackgroundColor = data.themeBackgroundColor;
-        if (data.themeTextColor !== undefined) updateData.themeTextColor = data.themeTextColor;
-        if (data.themeLabelColor !== undefined) updateData.themeLabelColor = data.themeLabelColor;
-        if (data.themeFontFamily !== undefined) updateData.themeFontFamily = data.themeFontFamily;
-        if (data.themeBorderRadius !== undefined) updateData.themeBorderRadius = data.themeBorderRadius;
-        if (data.themeButtonText !== undefined) updateData.themeButtonText = data.themeButtonText;
-        if (data.themeButtonTextColor !== undefined) updateData.themeButtonTextColor = data.themeButtonTextColor;
-        if (data.themeLogoUrl !== undefined) updateData.themeLogoUrl = data.themeLogoUrl;
-        if (data.thankYouUrl !== undefined) updateData.thankYouUrl = data.thankYouUrl;
-
-        const result = await db
-            .update(formsTable)
-            .set(updateData)
-            .where(and(eq(formsTable.id, data.id), eq(formsTable.createdBy, data.userId)))
-            .returning({ id: formsTable.id });
-
-        if (!result || result.length === 0)
-            throw new Error(`Form with ID ${data.id} not found or access denied`);
-
-        return { id: result[0]!.id };
-    }
-
-    public async deleteForm(payload: DeleteFormInputType) {
-        const data = await deleteFormInput.parseAsync(payload);
-
-        const result = await db
-            .delete(formsTable)
-            .where(and(eq(formsTable.id, data.id), eq(formsTable.createdBy, data.userId)))
-            .returning({ id: formsTable.id });
-
-        if (!result || result.length === 0)
-            throw new Error(`Form with ID ${data.id} not found or access denied`);
-
-        return { id: result[0]!.id };
-    }
-
-    public async publishForm(formId: string, status: "PUBLISHED" | "CLOSED", userId: string) {
-        const result = await db
-            .update(formsTable)
-            .set({ status })
-            .where(and(eq(formsTable.id, formId), eq(formsTable.createdBy, userId)))
-            .returning({ id: formsTable.id, status: formsTable.status });
-
-        if (!result || result.length === 0)
-            throw new Error(`Form with ID ${formId} not found or access denied`);
-
-        return { id: result[0]!.id, status: result[0]!.status };
-    }
-
-    public async listFormsByUserId(payload: ListFormsByUserIdInputType) {
-        const data = await listFormsByUserIdInput.parseAsync(payload);
-        const conditions = [eq(formsTable.createdBy, data.userId)];
-        if (data.folderId !== undefined) {
-            if (data.folderId === null) {
-                conditions.push(isNull(formsTable.folderId));
-            } else {
-                conditions.push(eq(formsTable.folderId, data.folderId));
-            }
+        if (!form) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Form not found" });
         }
-        const forms = await db
+
+        if (form.deletedAt !== null) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Form not found" });
+        }
+
+        if (form.createdBy !== userId) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
+        }
+
+        return form;
+    }
+
+    public async getByIdWithFields(formId: string, userId: string) {
+        const form = await db.query.formsTable.findFirst({
+            where: eq(formsTable.id, formId),
+            with: {
+                fields: {
+                    orderBy: (fields: any, { asc }: any) => [asc(fields.index)],
+                },
+            },
+        });
+
+        if (!form) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Form not found" });
+        }
+
+        if (form.deletedAt !== null) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Form not found" });
+        }
+
+        if (form.createdBy !== userId) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
+        }
+
+        return form;
+    }
+
+    // Bug #4 fix: previously did a plain `select()` from `formsTable`, which has no
+    // submission/view/start columns at all — the router was defaulting every one of these
+    // to 0 via `?? 0`, so the dashboard permanently showed zero for every form's stats.
+    // This now aggregates real counts from form_submissions and form_analytics_events, and
+    // computes weeklySubmissions instead of returning the hardcoded 0 that used to live in
+    // the router.
+    public async list(userId: string, folderId?: string) {
+        const filters = [eq(formsTable.createdBy, userId), sql`${formsTable.deletedAt} IS NULL`];
+        if (folderId) filters.push(eq(formsTable.folderId, folderId));
+
+        const rows = await db
             .select({
                 id: formsTable.id,
                 title: formsTable.title,
                 description: formsTable.description,
                 slug: formsTable.slug,
                 status: formsTable.status,
+                visibility: formsTable.visibility,
                 folderId: formsTable.folderId,
+                coverImageUrl: formsTable.coverImageUrl,
                 createdAt: formsTable.createdAt,
                 updatedAt: formsTable.updatedAt,
-                submissionCount: drizzleCount(formSubmissionsTable.id),
+                submissionCount: sql<number>`count(distinct ${formSubmissionsTable.id})`,
+                totalViews: sql<number>`count(*) filter (where ${formAnalyticsEventsTable.eventType} = 'view')`,
+                totalStarts: sql<number>`count(*) filter (where ${formAnalyticsEventsTable.eventType} = 'start')`,
             })
             .from(formsTable)
             .leftJoin(formSubmissionsTable, eq(formSubmissionsTable.formId, formsTable.id))
-            .where(and(...conditions))
-            .groupBy(formsTable.id, formsTable.createdAt)
-            .orderBy(formsTable.createdAt);
-        return forms;
-    }
+            .leftJoin(formAnalyticsEventsTable, eq(formAnalyticsEventsTable.formId, formsTable.id))
+            .where(and(...filters))
+            .groupBy(formsTable.id)
+            .orderBy(sql`${formsTable.createdAt} DESC`);
 
-    public async getFormById(formId: string) {
-        const rows = await db
-            .select()
-            .from(formsTable)
-            .where(eq(formsTable.id, formId));
+        const forms = rows.map((r) => ({
+            ...r,
+            submissionCount: Number(r.submissionCount ?? 0),
+            totalViews: Number(r.totalViews ?? 0),
+            totalStarts: Number(r.totalStarts ?? 0),
+        }));
 
-        if (!rows || rows.length === 0) return null;
-        return rows[0]!;
-    }
-
-    public async getFormBySlug(payload: GetFormBySlugInputType) {
-        const data = await getFormBySlugInput.parseAsync(payload);
-        const rows = await db
-            .select()
-            .from(formsTable)
+        const [{ weeklySubmissions } = { weeklySubmissions: 0 }] = await db
+            .select({ weeklySubmissions: sql<number>`count(*)` })
+            .from(formSubmissionsTable)
+            .innerJoin(formsTable, eq(formsTable.id, formSubmissionsTable.formId))
             .where(
                 and(
-                    eq(formsTable.slug, data.slug),
-                    eq(formsTable.status, "PUBLISHED"),
+                    eq(formsTable.createdBy, userId),
+                    sql`${formsTable.deletedAt} IS NULL`,
+                    sql`${formSubmissionsTable.createdAt} >= now() - interval '7 days'`,
                 ),
             );
 
-        if (!rows || rows.length === 0) return null;
-        return rows[0]!;
+        return { forms, weeklySubmissions: Number(weeklySubmissions ?? 0) };
     }
 
-    public async getFormWithFields(formIdOrSlug: string, options?: { onlyPublished?: boolean }) {
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(formIdOrSlug);
+    public async create(userId: string, data: { title: string; description?: string; themeId?: string; folderId?: string }) {
+        const slug = await slugService.generateSlug(data.title);
 
-        const conditions = [isUuid ? eq(formsTable.id, formIdOrSlug) : eq(formsTable.slug, formIdOrSlug)];
-        if (options?.onlyPublished) {
-            conditions.push(eq(formsTable.status, "PUBLISHED"));
+        try {
+            return await db.transaction(async (tx) => {
+                const [user] = await tx
+                    .select({ plan: usersTable.plan })
+                    .from(usersTable)
+                    .where(eq(usersTable.id, userId))
+                    .limit(1);
+
+                if (!user) {
+                    throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+                }
+
+                const plan = (user.plan || "free") as UserPlan;
+                const planLimit = PLAN_LIMITS[plan]?.formLimit ?? PLAN_LIMITS.free.formLimit;
+
+                if (planLimit !== -1) {
+                    const countResult = await tx
+                        .select({ count: sql<number>`count(*)` })
+                        .from(formsTable)
+                        .where(and(eq(formsTable.createdBy, userId), sql`${formsTable.deletedAt} IS NULL`));
+
+                    const count = countResult[0]?.count ?? 0;
+
+                    if (count >= planLimit) {
+                        throw new TRPCError({
+                            code: "FORBIDDEN",
+                            message: "Form limit reached for your plan. Please upgrade to create more forms.",
+                        });
+                    }
+                }
+
+                const formId = crypto.randomUUID();
+
+                const [newForm] = await tx
+                    .insert(formsTable)
+                    .values({
+                        id: formId,
+                        createdBy: userId,
+                        title: data.title,
+                        description: data.description,
+                        slug,
+                        themeId: data.themeId,
+                        folderId: data.folderId,
+                        status: "draft",
+                    })
+                    .returning();
+
+                return newForm;
+            });
+        } catch (error: any) {
+            if (error.code === "23505") {
+                throw new TRPCError({
+                    code: "CONFLICT",
+                    message: "Slug is already taken. Please try another one.",
+                });
+            }
+            throw error;
+        }
+    }
+
+    public async update(
+        userId: string,
+        formId: string,
+        data: {
+            title?: string;
+            description?: string;
+            slug?: string;
+            themeId?: string;
+            coverImageUrl?: string | null;
+            metaTitle?: string;
+            metaDescription?: string;
+            visibility?: "public" | "unlisted" | "private";
+            settings?: Record<string, any>;
+        }
+    ) {
+        const form = await this.getById(formId, userId);
+
+        if (data.slug && data.slug !== form.slug) {
+            const slugValidation = slugService.validateCustomSlug(data.slug);
+            if (!slugValidation.valid) {
+                throw new TRPCError({ code: "BAD_REQUEST", message: slugValidation.error });
+            }
+            const isAvailable = await slugService.checkAvailability(data.slug);
+            if (!isAvailable) {
+                throw new TRPCError({ code: "CONFLICT", message: "This slug is already taken" });
+            }
         }
 
-        const rows = await db
+        try {
+            const [updatedForm] = await db
+                .update(formsTable)
+                .set({
+                    ...data,
+                    updatedAt: new Date(),
+                })
+                .where(eq(formsTable.id, formId))
+                .returning();
+
+            return updatedForm;
+        } catch (error: any) {
+            if (error.code === "23505") {
+                throw new TRPCError({ code: "CONFLICT", message: "This slug is already taken" });
+            }
+            throw error;
+        }
+    }
+
+    public async delete(userId: string, formId: string) {
+        await this.getById(formId, userId);
+
+        await db.update(formsTable).set({ deletedAt: new Date() }).where(eq(formsTable.id, formId));
+    }
+
+    public async publish(userId: string, formId: string) {
+        const form = await this.getById(formId, userId);
+
+        const [fieldCount] = await db
+            .select({ count: sql<number>`count(*)` })
+            .from(formFieldsTable)
+            .where(eq(formFieldsTable.formId, formId));
+
+        if (!fieldCount || Number(fieldCount.count) === 0) {
+            throw new TRPCError({
+                code: "PRECONDITION_FAILED",
+                message: "Cannot publish a form with no fields. Please add at least one field first.",
+            });
+        }
+
+        const [updatedForm] = await db
+            .update(formsTable)
+            .set({
+                status: "published",
+                publishedAt: form.publishedAt ?? new Date(),
+                updatedAt: new Date(),
+            })
+            .where(eq(formsTable.id, formId))
+            .returning();
+
+        return updatedForm;
+    }
+
+    public async unpublish(userId: string, formId: string) {
+        await this.getById(formId, userId);
+
+        const [updatedForm] = await db
+            .update(formsTable)
+            .set({
+                status: "draft",
+                updatedAt: new Date(),
+            })
+            .where(eq(formsTable.id, formId))
+            .returning();
+
+        return updatedForm;
+    }
+
+    public async archive(userId: string, formId: string) {
+        await this.getById(formId, userId);
+
+        const [updatedForm] = await db
+            .update(formsTable)
+            .set({
+                status: "archived",
+                updatedAt: new Date(),
+            })
+            .where(eq(formsTable.id, formId))
+            .returning();
+
+        return updatedForm;
+    }
+
+    public async clone(userId: string, formId: string) {
+        const originalForm = await this.getById(formId, userId);
+
+        const [user] = await db
+            .select({ plan: usersTable.plan })
+            .from(usersTable)
+            .where(eq(usersTable.id, userId))
+            .limit(1);
+
+        if (!user) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+        }
+
+        const plan = (user.plan || "free") as UserPlan;
+        const planLimit = PLAN_LIMITS[plan]?.formLimit ?? PLAN_LIMITS.free.formLimit;
+
+        if (planLimit !== -1) {
+            const countResult = await db
+                .select({ count: sql<number>`count(*)` })
+                .from(formsTable)
+                .where(and(eq(formsTable.createdBy, userId), sql`${formsTable.deletedAt} IS NULL`));
+
+            const count = countResult[0]?.count ?? 0;
+
+            if (count >= planLimit) {
+                throw new TRPCError({
+                    code: "FORBIDDEN",
+                    message: "Form limit reached for your plan. Please upgrade to create more forms.",
+                });
+            }
+        }
+
+        return await db.transaction(async (tx) => {
+            const newSlug = await slugService.generateSlug(`${originalForm.title} Copy`);
+            const newFormId = crypto.randomUUID();
+
+            const [newForm] = await tx
+                .insert(formsTable)
+                .values({
+                    id: newFormId,
+                    createdBy: userId,
+                    title: `${originalForm.title} (Copy)`,
+                    description: originalForm.description,
+                    slug: newSlug,
+                    themeId: originalForm.themeId,
+                    folderId: originalForm.folderId,
+                    status: "draft",
+                    metaTitle: originalForm.metaTitle,
+                    metaDescription: originalForm.metaDescription,
+                    visibility: originalForm.visibility,
+                    settings: originalForm.settings,
+                })
+                .returning();
+
+            const originalFields = await tx
+                .select()
+                .from(formFieldsTable)
+                .where(eq(formFieldsTable.formId, formId));
+
+            if (originalFields.length > 0) {
+                const newFields = originalFields.map((oldField) => ({
+                    id: crypto.randomUUID(),
+                    formId: newFormId,
+                    type: oldField.type,
+                    label: oldField.label,
+                    labelKey: oldField.labelKey,
+                    description: oldField.description,
+                    placeholder: oldField.placeholder,
+                    isRequired: oldField.isRequired,
+                    index: oldField.index,
+                    page: oldField.page,
+                    options: oldField.options,
+                    validation: oldField.validation,
+                    condition: oldField.condition,
+                    maxFileSize: oldField.maxFileSize,
+                    allowedFileTypes: oldField.allowedFileTypes,
+                }));
+                await tx.insert(formFieldsTable).values(newFields);
+            }
+
+            return newForm;
+        });
+    }
+
+    public async getPublicBySlug(
+        slug: string,
+        verifyToken?: (formId: string) => Promise<boolean> | boolean,
+    ) {
+        const form = await db.query.formsTable.findFirst({
+            where: eq(formsTable.slug, slug),
+            with: {
+                fields: {
+                    orderBy: (fields: any, { asc }: any) => [asc(fields.index)],
+                },
+            },
+        });
+
+        if (!form) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Form not found" });
+        }
+
+        const { resolvePublicForm } = await import("./access-control");
+        return resolvePublicForm(form, verifyToken);
+    }
+
+    public async setFormPassword(userId: string, formId: string, password?: string) {
+        const form = await this.getById(formId, userId);
+
+        let passwordHash = null;
+        if (password) {
+            const bcrypt = await import("bcryptjs");
+            passwordHash = await bcrypt.hash(password, 10);
+        }
+
+        await db
+            .update(formsTable)
+            .set({ passwordHash, updatedAt: new Date() })
+            .where(eq(formsTable.id, formId));
+    }
+
+    public async validatePassword(slug: string, password: string): Promise<{ token: string }> {
+        const [form] = await db
             .select({
                 id: formsTable.id,
-                title: formsTable.title,
-                description: formsTable.description,
-                slug: formsTable.slug,
+                passwordHash: formsTable.passwordHash,
                 status: formsTable.status,
-                folderId: formsTable.folderId,
-                notifyEmail: formsTable.notifyEmail,
-                notifyEmailTo: formsTable.notifyEmailTo,
-                themePrimaryColor: formsTable.themePrimaryColor,
-                themeBackgroundColor: formsTable.themeBackgroundColor,
-                themeTextColor: formsTable.themeTextColor,
-                themeLabelColor: formsTable.themeLabelColor,
-                themeFontFamily: formsTable.themeFontFamily,
-                themeBorderRadius: formsTable.themeBorderRadius,
-                themeButtonText: formsTable.themeButtonText,
-                themeButtonTextColor: formsTable.themeButtonTextColor,
-                themeLogoUrl: formsTable.themeLogoUrl,
-                thankYouUrl: formsTable.thankYouUrl,
-                createdAt: formsTable.createdAt,
-                updatedAt: formsTable.updatedAt,
-
-                field_id: formFieldsTable.id,
-                field_formId: formFieldsTable.formId,
-                field_label: formFieldsTable.label,
-                field_labelKey: formFieldsTable.labelKey,
-                field_description: formFieldsTable.description,
-                field_placeholder: formFieldsTable.placeholder,
-                field_isRequired: formFieldsTable.isRequired,
-                field_index: formFieldsTable.index,
-                field_type: formFieldsTable.type,
-                field_options: formFieldsTable.options,
-                field_maxFileSize: formFieldsTable.maxFileSize,
-                field_allowedFileTypes: formFieldsTable.allowedFileTypes,
-                field_validation: formFieldsTable.validation,
-                field_condition: formFieldsTable.condition,
-                field_page: formFieldsTable.page,
-                field_createdAt: formFieldsTable.createdAt,
-                field_updatedAt: formFieldsTable.updatedAt,
+                deletedAt: formsTable.deletedAt,
             })
             .from(formsTable)
-            .leftJoin(formFieldsTable, eq(formFieldsTable.formId, formsTable.id))
-            .where(and(...conditions))
-            .orderBy(formFieldsTable.index);
+            .where(eq(formsTable.slug, slug))
+            .limit(1);
 
-        if (!rows || rows.length === 0) throw new Error(`Form with ID ${formIdOrSlug} not found`);
-
-        const first = rows[0]!;
-
-        const form: any = {
-            id: first.id,
-            title: first.title,
-            description: first.description ?? null,
-            slug: first.slug,
-            status: first.status,
-            folderId: first.folderId ?? null,
-            notifyEmail: first.notifyEmail ?? false,
-            notifyEmailTo: first.notifyEmailTo ?? null,
-            themePrimaryColor: first.themePrimaryColor ?? "#3b82f6",
-            themeBackgroundColor: first.themeBackgroundColor ?? "#000000",
-            themeTextColor: first.themeTextColor ?? "#ffffff",
-            themeLabelColor: first.themeLabelColor ?? "#ffffff",
-            themeFontFamily: first.themeFontFamily ?? "Inter",
-            themeBorderRadius: first.themeBorderRadius ?? "0.5rem",
-            themeButtonText: first.themeButtonText ?? "Submit",
-            themeButtonTextColor: first.themeButtonTextColor ?? "#ffffff",
-            themeLogoUrl: first.themeLogoUrl ?? null,
-            thankYouUrl: first.thankYouUrl ?? null,
-            createdAt: first.createdAt ? first.createdAt.toISOString() : null,
-            updatedAt: first.updatedAt ? first.updatedAt.toISOString() : null,
-            fields: [],
-        };
-
-        for (const r of rows) {
-            if (!r.field_id) continue;
-
-            form.fields.push({
-                id: r.field_id,
-                formId: r.field_formId,
-                label: r.field_label,
-                labelKey: r.field_labelKey,
-                description: r.field_description ?? null,
-                placeholder: r.field_placeholder ?? null,
-                isRequired: r.field_isRequired,
-                index: r.field_index!.toString(),
-                type: r.field_type,
-                options: r.field_options ?? [],
-                maxFileSize: r.field_maxFileSize ? Number(r.field_maxFileSize) : null,
-                allowedFileTypes: r.field_allowedFileTypes ?? null,
-                validation: r.field_validation ?? null,
-                condition: r.field_condition ?? null,
-                page: r.field_page ? Number(r.field_page) : 1,
-                createdAt: r.field_createdAt ? r.field_createdAt.toISOString() : null,
-                updatedAt: r.field_updatedAt ? r.field_updatedAt.toISOString() : null,
-            });
+        if (!form || form.deletedAt !== null || form.status !== "published") {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Form not found" });
         }
 
-        return form;
-    }
-
-    public async exportForm(formIdOrSlug: string, userId?: string) {
-        const form = await this.getFormWithFields(formIdOrSlug);
-        if (userId && form.createdBy !== userId) {
-            throw new Error("Access denied");
-        }
-        const data = {
-            title: form.title,
-            description: form.description ?? undefined,
-            slug: form.slug,
-            fields: form.fields.map((f: any) => ({
-                label: f.label,
-                type: f.type,
-                description: f.description ?? undefined,
-                placeholder: f.placeholder ?? undefined,
-                isRequired: f.isRequired,
-                options: f.options?.length ? f.options : undefined,
-                validation: f.validation ?? undefined,
-                condition: f.condition ? { ...f.condition } : undefined,
-                page: f.page,
-                maxFileSize: f.maxFileSize ?? undefined,
-                allowedFileTypes: f.allowedFileTypes?.length ? f.allowedFileTypes : undefined,
-            })),
-        };
-        return formExportSchema.parseAsync(data);
-    }
-
-    public async importForm(payload: ImportFormInputType) {
-        const data = await importFormInput.parseAsync(payload);
-
-        const form = await this.createForm({
-            title: data.data.title,
-            description: data.data.description,
-            slug: data.data.slug || undefined,
-            createdBy: data.userId,
-        });
-
-        const { default: FormFieldService } = await import("../form-field/index");
-        const fieldSvc = new FormFieldService();
-
-        for (const field of data.data.fields) {
-            await fieldSvc.createField({
-                label: field.label,
-                type: field.type as any,
-                formId: form.id,
-                userId: data.userId,
-                description: field.description,
-                placeholder: field.placeholder,
-                isRequired: field.isRequired ?? false,
-                options: field.options,
-                validation: field.validation as any,
-                condition: field.condition ?? null,
-                page: field.page ?? 1,
-                maxFileSize: field.maxFileSize,
-                allowedFileTypes: field.allowedFileTypes,
-            });
+        if (!form.passwordHash) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Form is not password protected" });
         }
 
-        return form;
-    }
-
-    public async duplicateForm(formId: string, userId: string) {
-        const originalForm = await this.getFormWithFields(formId);
-        
-        if (!originalForm) {
-            throw new Error(`Form with ID ${formId} not found`);
+        const bcrypt = await import("bcryptjs");
+        const isValid = await bcrypt.compare(password, form.passwordHash);
+        if (!isValid) {
+            throw new TRPCError({ code: "UNAUTHORIZED", message: "Incorrect password" });
         }
 
-        const newForm = await this.createForm({
-            title: `Copy of ${originalForm.title}`,
-            description: originalForm.description ?? undefined,
-            createdBy: userId,
-            folderId: originalForm.folderId ?? undefined,
-        });
+        const { signFormPasswordToken } = await import("../auth/form-token");
+        const token = signFormPasswordToken(form.id);
 
-        const { default: FormFieldService } = await import("../form-field/index");
-        const fieldSvc = new FormFieldService();
-
-        for (const field of originalForm.fields) {
-            await fieldSvc.createField({
-                label: field.label,
-                type: field.type as any,
-                formId: newForm.id,
-                userId: userId,
-                description: field.description,
-                placeholder: field.placeholder,
-                isRequired: field.isRequired,
-                options: field.options,
-                validation: field.validation as any,
-                condition: field.condition,
-                page: field.page,
-                maxFileSize: field.maxFileSize,
-                allowedFileTypes: field.allowedFileTypes,
-            });
-        }
-
-        return newForm;
+        return { token };
     }
 }

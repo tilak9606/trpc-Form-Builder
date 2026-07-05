@@ -22,8 +22,8 @@ import { Badge } from "~/components/ui/badge";
 import { Skeleton } from "~/components/ui/skeleton";
 
 const PIE_COLORS = [
-    "var(--tint-sky)", "var(--tint-peach)", "var(--tint-mint)",
-    "#8b5cf6", "var(--tint-blush)", "var(--tint-butter)", "var(--tint-lilac)",
+    "var(--tint-sky-ink)", "var(--tint-peach-ink)", "var(--tint-mint-ink)",
+    "#8b5cf6", "var(--tint-blush-ink)", "var(--tint-butter-ink)", "var(--tint-lilac-ink)",
 ];
 
 const typeLabels: Record<string, string> = {
@@ -137,7 +137,7 @@ export default function AnalyticsPage() {
     const formId = params?.id as string | undefined;
     const [selectedField, setSelectedField] = useState<string>("");
 
-    const { form } = useGetFormWithFields(formId ?? "", "DRAFT");
+    const { form } = useGetFormWithFields(formId);
     const { analytics, isLoading } = useGetAnalytics(formId ?? "");
 
     if (isLoading) {
@@ -245,9 +245,9 @@ export default function AnalyticsPage() {
                                     <YAxis tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" allowDecimals={false} />
                                     <Tooltip contentStyle={tooltipStyle} />
                                     <Legend />
-                                    <Area type="monotone" dataKey="views" stackId="1" stroke="var(--tint-sky)" fill="var(--tint-sky)" fillOpacity={0.6} name="Views" />
-                                    <Area type="monotone" dataKey="starts" stackId="1" stroke="var(--tint-peach)" fill="var(--tint-peach)" fillOpacity={0.6} name="Starts" />
-                                    <Area type="monotone" dataKey="submissions" stackId="1" stroke="var(--tint-mint)" fill="var(--tint-mint)" fillOpacity={0.6} name="Submissions" />
+                                    <Area type="monotone" dataKey="views" stackId="1" stroke="var(--tint-sky-ink)" fill="var(--tint-sky-ink)" fillOpacity={0.6} name="Views" />
+                                    <Area type="monotone" dataKey="starts" stackId="1" stroke="var(--tint-peach-ink)" fill="var(--tint-peach-ink)" fillOpacity={0.6} name="Starts" />
+                                    <Area type="monotone" dataKey="submissions" stackId="1" stroke="var(--tint-mint-ink)" fill="var(--tint-mint-ink)" fillOpacity={0.6} name="Submissions" />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </EditorialCard>
@@ -262,7 +262,7 @@ export default function AnalyticsPage() {
                                     <XAxis dataKey="date" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" tickFormatter={formatDate} />
                                     <YAxis tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" allowDecimals={false} />
                                     <Tooltip contentStyle={tooltipStyle} />
-                                    <Area type="monotone" dataKey="count" stroke="var(--tint-mint)" fill="var(--tint-mint)" fillOpacity={0.4} name="Submissions" />
+                                    <Area type="monotone" dataKey="count" stroke="var(--tint-mint-ink)" fill="var(--tint-mint-ink)" fillOpacity={0.4} name="Submissions" />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </EditorialCard>

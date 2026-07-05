@@ -46,7 +46,7 @@ export const useCreateSubmission = () => {
     };
 };
 
-export const useGetSubmissionsByFormId = (formId: string) => {
+export const useGetSubmissionsByFormId = (formId: string, page: number = 1, limit: number = 20) => {
     const {
         data: submissions,
         error,
@@ -54,7 +54,10 @@ export const useGetSubmissionsByFormId = (formId: string) => {
         isFetching,
         isLoading,
         status,
-    } = trpc.formSubmission.getSubmissionsByFormId.useQuery({ formId });
+    } = trpc.formSubmission.getSubmissionsByFormId.useQuery(
+        { formId, page, limit },
+        { enabled: !!formId },
+    );
 
     return {
         submissions,

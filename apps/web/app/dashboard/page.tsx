@@ -3,11 +3,15 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useListForms, useCreateForm, usePublishForm, useDeleteForm } from "~/hooks/api/form";
+import { useListForms, useCreateForm, usePublishForm, useUnpublishForm, useDeleteForm } from "~/hooks/api/form";
 import { useSession } from "~/lib/auth-client";
+import { trpc } from "~/trpc/client";
+import { useUserPlan } from "~/hooks/api/user";
+import { PLAN_LIMITS } from "@repo/database/constants/user-plan";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
-import { Plus, MoreVertical } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "~/components/ui/alert";
+import { Plus, MoreVertical, X } from "lucide-react";
 import {
   TintCard,
   NumberTicker,
@@ -41,26 +45,59 @@ export default function DashboardPage() {
   const router = useRouter();
   const [statusFilter, setStatusFilter] = React.useState<FormStatus>("all");
   const [deleteTarget, setDeleteTarget] = React.useState<{ id: string; title: string } | null>(null);
-
+  const [dismissed, setDismissed] = React.useState(false);
   const { data: session } = useSession();
-  const { forms, isLoading } = useListForms();
+  const { plan: userPlan, isLoading: planLoading } = useUserPlan();
+  const userPlanType = (userPlan?.plan ?? "free") as keyof typeof PLAN_LIMITS;
+  const planLimits = PLAN_LIMITS[userPlanType];
+  const isApproachingLimit =
+    !planLoading &&
+    userPlan != null &&
+    planLimits.formLimit > 0 &&
+    userPlan.formCount >= planLimits.formLimit * 0.8;
+  const { forms: listForms, isLoading } = useListForms();
+  const forms = listForms ?? [];
   const { createFormAsync, status: createStatus } = useCreateForm();
   const { publishFormAsync } = usePublishForm();
+  const { unpublishFormAsync } = useUnpublishForm();
   const { deleteFormAsync } = useDeleteForm();
 
-  const formList = forms ?? [];
-  const filteredForms = statusFilter === "all"
-    ? formList
-    : formList.filter((f: any) => f.status?.toLowerCase() === statusFilter);
+  const analyticsQueries = trpc.useQueries((t) =>
+    forms.map((f) => t.formSubmission.getAnalytics({ formId: f.id })),
+  );
 
-  const totalForms = formList.length;
-  const totalResponses = formList.reduce((sum: number, f: any) => sum + (f.totalSubmissions ?? 0), 0);
-  const avgCompletion = formList.length > 0
-    ? Math.round(formList.reduce((sum: number, f: any) => {
-        const rate = (f.totalStarts && f.totalStarts > 0) ? (f.totalSubmissions / f.totalStarts) * 100 : 0;
-        return sum + rate;
-      }, 0) / formList.length)
-    : 0;
+  const analyticsMap = React.useMemo(() => {
+    const map = new Map<string, any>();
+    analyticsQueries.forEach((query, i) => {
+      const formId = forms[i]?.id;
+      if (query.data && formId) map.set(formId, query.data);
+    });
+    return map;
+  }, [analyticsQueries, forms]);
+
+  const weeklySubmissionsValue = React.useMemo(() => {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    let total = 0;
+    for (const a of analyticsMap.values()) {
+      for (const d of (a.dailySubmissions ?? [])) {
+        if (new Date(d.date) >= sevenDaysAgo) {
+          total += d.count;
+        }
+      }
+    }
+    return total;
+  }, [analyticsMap]);
+
+  const filteredForms = statusFilter === "all"
+    ? forms
+    : forms.filter((f: any) => f.status?.toLowerCase() === statusFilter);
+
+  const totalForms = forms.length;
+  const analyticsList = Array.from(analyticsMap.values());
+  const totalResponses = analyticsList.reduce((sum, a) => sum + (a.totalSubmissions ?? 0), 0);
+  const totalStarts = analyticsList.reduce((sum, a) => sum + (a.totalStarts ?? 0), 0);
+  const avgCompletion = totalStarts > 0 ? Math.min(100, Math.round((totalResponses / totalStarts) * 100)) : 0;
 
   const handleCreateForm = async () => {
     try {
@@ -73,9 +110,13 @@ export default function DashboardPage() {
 
   const handlePublish = async (formId: string, currentStatus: string) => {
     try {
-      const newStatus = currentStatus?.toUpperCase() === "PUBLISHED" ? "DRAFT" : "PUBLISHED";
-      await publishFormAsync({ formId, status: newStatus as any });
-      toast.success(newStatus === "PUBLISHED" ? "Form published!" : "Form unpublished.");
+      if (currentStatus?.toUpperCase() === "PUBLISHED") {
+        await unpublishFormAsync({ formId });
+        toast.success("Form unpublished.");
+      } else {
+        await publishFormAsync({ formId });
+        toast.success("Form published!");
+      }
     } catch {
       toast.error("Failed to update form status.");
     }
@@ -120,6 +161,28 @@ export default function DashboardPage() {
         </Button>
       </div>
 
+      {isApproachingLimit && !dismissed && (
+        <Alert
+          variant="default"
+          className="bg-warning/10 border-warning/30 text-foreground dark:bg-warning/10 dark:border-warning/30 [&>svg]:text-warning"
+        >
+          <AlertTitle className="text-foreground">Plan limit warning</AlertTitle>
+          <AlertDescription className="text-muted-foreground flex items-center justify-between gap-4">
+            <span>
+              You&apos;re approaching your plan limit ({userPlan.formCount}/{planLimits.formLimit} forms). Upgrade for unlimited forms.
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0 text-muted-foreground hover:text-foreground hover:bg-accent"
+              onClick={() => setDismissed(true)}
+            >
+              <X className="size-4" />
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-card border border-border rounded-3xl p-6 shadow-[0_4px_12px_rgba(0,0,0,0.02)]">
           <div className="text-3xl md:text-4xl font-display text-foreground mb-1 flex items-center">
@@ -144,7 +207,7 @@ export default function DashboardPage() {
 
         <div className="bg-card border border-border rounded-3xl p-6 shadow-[0_4px_12px_rgba(0,0,0,0.02)]">
           <div className="text-3xl md:text-4xl font-display text-foreground mb-1">
-            <NumberTicker value={totalResponses > 0 ? Math.min(totalResponses, 99) : 0} />
+            <NumberTicker value={weeklySubmissionsValue} />
           </div>
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">This week</div>
         </div>
@@ -232,12 +295,18 @@ export default function DashboardPage() {
                   </DropdownMenu>
                 </div>
 
-                <div
-                  className="h-32 -mx-6 -mt-6 mb-4 shrink-0 relative z-0 pointer-events-none"
-                  style={{
-                    background: `linear-gradient(135deg, var(--tint-mint), var(--tint-peach))`,
-                  }}
-                />
+                {form.coverImageUrl ? (
+                  <div className="h-32 -mx-6 -mt-6 mb-4 shrink-0 relative z-0 pointer-events-none overflow-hidden">
+                    <img src={form.coverImageUrl} alt="" className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <div
+                    className="h-32 -mx-6 -mt-6 mb-4 shrink-0 relative z-0 pointer-events-none"
+                    style={{
+                      background: `linear-gradient(135deg, var(--tint-mint), var(--tint-peach))`,
+                    }}
+                  />
+                )}
 
                 <div className="flex items-center gap-2 flex-wrap relative z-0 pointer-events-none px-1">
                   <h3 className="text-lg font-semibold text-foreground line-clamp-1">
@@ -253,7 +322,7 @@ export default function DashboardPage() {
                 )}
 
                 <div className="mt-auto pt-4 text-mono-sm text-muted-foreground relative z-0 pointer-events-none px-1">
-                  {form.totalViews ?? 0} views · {form.totalStarts ?? 0} starts · {form.totalSubmissions ?? 0} subs
+                  {analyticsMap.get(form.id)?.totalSubmissions ?? 0} submissions
                 </div>
               </EditorialCard>
             </div>

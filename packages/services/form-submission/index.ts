@@ -38,6 +38,27 @@ export default class FormSubmissionService {
     public async createSubmission(payload: CreateSubmissionInputType) {
         const data = await createSubmissionInput.parseAsync(payload);
 
+        const [formRow] = await db
+            .select({ settings: formsTable.settings })
+            .from(formsTable)
+            .where(eq(formsTable.id, data.formId))
+            .limit(1);
+
+        const settings = (formRow?.settings ?? {}) as any;
+        const allowMultiple = settings.allowMultipleSubmissions !== false;
+
+        if (!allowMultiple && data.respondentEmail) {
+            const [existing] = await db
+                .select({ id: formSubmissionsTable.id })
+                .from(formSubmissionsTable)
+                .where(and(
+                    eq(formSubmissionsTable.formId, data.formId),
+                    eq(formSubmissionsTable.respondentEmail, data.respondentEmail),
+                ))
+                .limit(1);
+            if (existing) throw new Error("You have already submitted this form.");
+        }
+
         const rateLimitKey = data.deviceFingerprint
             ? `${data.formId}:${data.respondentIp || "unknown"}:${data.deviceFingerprint}`
             : `${data.formId}:${data.respondentIp || "unknown"}`;
@@ -124,7 +145,6 @@ export default class FormSubmissionService {
                 respondentIp: formSubmissionsTable.respondentIp,
                 values: formSubmissionsTable.values,
                 createdAt: formSubmissionsTable.createdAt,
-                updatedAt: formSubmissionsTable.updatedAt,
             })
             .from(formSubmissionsTable)
             .where(whereClause)
@@ -139,7 +159,6 @@ export default class FormSubmissionService {
             respondentIp: r.respondentIp ?? null,
             values: r.values ?? [],
             createdAt: r.createdAt ? r.createdAt.toISOString() : null,
-            updatedAt: r.updatedAt ? r.updatedAt.toISOString() : null,
         }));
 
         return { submissions, total, page, limit, totalPages };
@@ -157,7 +176,6 @@ export default class FormSubmissionService {
                 respondentIp: formSubmissionsTable.respondentIp,
                 values: formSubmissionsTable.values,
                 createdAt: formSubmissionsTable.createdAt,
-                updatedAt: formSubmissionsTable.updatedAt,
             })
             .from(formSubmissionsTable)
             .where(and(
@@ -174,7 +192,6 @@ export default class FormSubmissionService {
             respondentIp: row.respondentIp ?? null,
             values: row.values ?? [],
             createdAt: row.createdAt ? row.createdAt.toISOString() : null,
-            updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
         };
     }
 
@@ -274,67 +291,94 @@ export default class FormSubmissionService {
         const data = await getAnalyticsInput.parseAsync(payload);
         await this.verifyFormOwnership(data.formId, data.userId);
 
+        let totalViews = 0;
+        let totalStarts = 0;
+        let totalSubs = 0;
+
         const totalSubmissions = await db
             .select({ value: count() })
             .from(formSubmissionsTable)
             .where(eq(formSubmissionsTable.formId, data.formId));
+        totalSubs = Number(totalSubmissions[0]?.value ?? 0);
 
-        const [viewsResult] = await db
-            .select({ value: count() })
-            .from(formAnalyticsEventsTable)
-            .where(and(
-                eq(formAnalyticsEventsTable.formId, data.formId),
-                eq(formAnalyticsEventsTable.eventType, "view")
-            ));
+        try {
+            const [viewsResult] = await db
+                .select({ value: count() })
+                .from(formAnalyticsEventsTable)
+                .where(and(
+                    eq(formAnalyticsEventsTable.formId, data.formId),
+                    eq(formAnalyticsEventsTable.eventType, "view")
+                ));
+            totalViews = Number(viewsResult?.value ?? 0);
+        } catch {
+            totalViews = 0;
+        }
 
-        const [startsResult] = await db
-            .select({ value: count() })
-            .from(formAnalyticsEventsTable)
-            .where(and(
-                eq(formAnalyticsEventsTable.formId, data.formId),
-                eq(formAnalyticsEventsTable.eventType, "start")
-            ));
+        try {
+            const [startsResult] = await db
+                .select({ value: count() })
+                .from(formAnalyticsEventsTable)
+                .where(and(
+                    eq(formAnalyticsEventsTable.formId, data.formId),
+                    eq(formAnalyticsEventsTable.eventType, "start")
+                ));
+            totalStarts = Number(startsResult?.value ?? 0);
+        } catch {
+            totalStarts = 0;
+        }
 
-        const totalViews = Number(viewsResult?.value ?? 0);
-        const totalStarts = Number(startsResult?.value ?? 0);
-        const totalSubs = Number(totalSubmissions[0]?.value ?? 0);
-        const completionRate = totalViews > 0 ? Math.round((totalSubs / totalViews) * 100) : 0;
+        const completionRate = totalViews > 0 ? Math.min(100, Math.round((totalSubs / totalViews) * 100)) : 0;
 
-        const dailySubRows = await db.execute(sql`
-            SELECT date_trunc('day', created_at)::date as date, count(*)::int as count
-            FROM form_submissions
-            WHERE form_id = ${data.formId}
-            GROUP BY 1
-            ORDER BY 1
-        `);
-        const dailySubmissions = dailySubRows.rows.map((r: any) => ({
-            date: r.date,
-            count: r.count,
-        }));
+        let dailySubmissions: { date: string; count: number }[] = [];
+        try {
+            const dailySubRows = await db.execute(sql`
+                SELECT date_trunc('day', created_at)::date as date, count(*)::int as count
+                FROM form_submissions
+                WHERE form_id = ${data.formId}
+                GROUP BY 1
+                ORDER BY 1
+            `);
+            dailySubmissions = dailySubRows.rows.map((r: any) => ({
+                date: String(r.date),
+                count: r.count,
+            }));
+        } catch {
+            dailySubmissions = [];
+        }
 
-        const dailyViewsRows = await db.execute(sql`
-            SELECT date_trunc('day', created_at)::date as date, count(*)::int as count
-            FROM form_analytics_events
-            WHERE form_id = ${data.formId} AND event_type = 'view'
-            GROUP BY 1
-            ORDER BY 1
-        `);
-        const dailyViews = dailyViewsRows.rows.map((r: any) => ({
-            date: r.date,
-            count: r.count,
-        }));
+        let dailyViews: { date: string; count: number }[] = [];
+        try {
+            const dailyViewsRows = await db.execute(sql`
+                SELECT date_trunc('day', created_at)::date as date, count(*)::int as count
+                FROM form_analytics_events
+                WHERE form_id = ${data.formId} AND event_type = 'view'
+                GROUP BY 1
+                ORDER BY 1
+            `);
+            dailyViews = dailyViewsRows.rows.map((r: any) => ({
+                date: String(r.date),
+                count: r.count,
+            }));
+        } catch {
+            dailyViews = [];
+        }
 
-        const dailyStartsRows = await db.execute(sql`
-            SELECT date_trunc('day', created_at)::date as date, count(*)::int as count
-            FROM form_analytics_events
-            WHERE form_id = ${data.formId} AND event_type = 'start'
-            GROUP BY 1
-            ORDER BY 1
-        `);
-        const dailyStarts = dailyStartsRows.rows.map((r: any) => ({
-            date: r.date,
-            count: r.count,
-        }));
+        let dailyStarts: { date: string; count: number }[] = [];
+        try {
+            const dailyStartsRows = await db.execute(sql`
+                SELECT date_trunc('day', created_at)::date as date, count(*)::int as count
+                FROM form_analytics_events
+                WHERE form_id = ${data.formId} AND event_type = 'start'
+                GROUP BY 1
+                ORDER BY 1
+            `);
+            dailyStarts = dailyStartsRows.rows.map((r: any) => ({
+                date: String(r.date),
+                count: r.count,
+            }));
+        } catch {
+            dailyStarts = [];
+        }
 
         const fields = await db
             .select({ id: formFieldsTable.id, label: formFieldsTable.label, type: formFieldsTable.type, options: formFieldsTable.options })

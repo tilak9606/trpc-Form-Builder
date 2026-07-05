@@ -13,7 +13,7 @@ export const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowedMimes = [
-      "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml",
+      "image/jpeg", "image/png", "image/gif", "image/webp",
       "application/pdf",
       "application/msword",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const submissionValueModel = z.object({
-    fieldId: z.string(),
+    fieldId: z.uuid(),
     value: z.string(),
 });
 
@@ -38,7 +38,6 @@ export const getSubmissionsByFormIdOutputModel = z.object({
                 }),
             ),
             createdAt: z.string().nullable(),
-            updatedAt: z.string().nullable(),
         }),
     ),
     total: z.number(),
@@ -64,7 +63,6 @@ export const getSubmissionByIdOutputModel = z.object({
         }),
     ),
     createdAt: z.string().nullable(),
-    updatedAt: z.string().nullable(),
 });
 
 export const exportSubmissionsInputModel = z.object({

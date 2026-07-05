@@ -14,7 +14,7 @@ export const formTemplatesTable = pgTable("form_templates", {
         options?: string[];
         validation?: { min?: number; max?: number; pattern?: string };
     }[]>().notNull().default([]),
-    createdBy: text("created_by").references(() => usersTable.id),
+    createdBy: text("created_by").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()),
 });

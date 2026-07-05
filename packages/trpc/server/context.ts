@@ -16,7 +16,11 @@ export interface TRPCContext {
 }
 
 export async function createContext({ req }: CreateExpressContextOptions) {
-  const headers = new Headers(req.headers as Record<string, string>);
+  const headers = new Headers(
+    Object.fromEntries(
+      Object.entries(req.headers).filter(([, v]) => typeof v === "string") as [string, string][],
+    ),
+  );
   const session = await auth.api.getSession({ headers });
 
   const respondentIp =

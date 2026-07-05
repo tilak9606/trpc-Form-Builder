@@ -78,6 +78,55 @@
       "when": 1782600000000,
       "tag": "0010_multi_page_forms",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1782700000000,
+      "tag": "0011_analytics_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1782800000000,
+      "tag": "0012_add_button_text_color",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1782900000000,
+      "tag": "0013_add_plan_and_thankyou_url",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1783000000000,
+      "tag": "0014_add_razorpay_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1783100000000,
+      "tag": "0015_create_email_notification_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1783200000000,
+      "tag": "0016_add_cover_image_url",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1783300000000,
+      "tag": "0017_enable_pgcrypto",
+      "breakpoints": true
     }
   ]
 }

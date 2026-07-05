@@ -13,8 +13,22 @@ export interface EditorField {
   required: boolean;
   pageNumber?: number;
   options?: { label: string; value: string }[];
-  validations?: Record<string, any>;
-  settings?: Record<string, any>;
+  validations?: Record<string, unknown>;
+  settings?: Record<string, unknown>;
+}
+
+export interface CustomTheme {
+  colors?: Record<string, string>;
+  fonts?: {
+    display?: string;
+    body?: string;
+    weights?: { display: number; body: number };
+    scale?: { hero: number; question: number; body: number; helper: number };
+  };
+  shape?: {
+    radius?: number;
+    border?: { width: number; style: string; color: string };
+  };
 }
 
 interface FormEditorState {
@@ -25,10 +39,12 @@ interface FormEditorState {
   selectedFieldId: string | null;
   themeId: string | null;
   coverImageUrl: string | null;
-  customTheme: any | null;
+  customTheme: CustomTheme | null;
   showFieldIcons: boolean;
   isDirty: boolean;
   lastSavedAt: number | null;
+  currentPage: number;
+  pageCount: number;
 
   setFormData: (data: {
     formId: string;
@@ -37,7 +53,7 @@ interface FormEditorState {
     fields: EditorField[];
     themeId?: string | null;
     coverImageUrl?: string | null;
-    customTheme?: any | null;
+    customTheme?: CustomTheme | null;
     showFieldIcons?: boolean;
   }) => void;
   setTitle: (title: string) => void;
@@ -45,8 +61,8 @@ interface FormEditorState {
   setShowFieldIcons: (show: boolean) => void;
   setThemeId: (themeId: string | null) => void;
   setCoverImageUrl: (url: string | null) => void;
-  updateCustomTheme: (updates: any) => void;
-  setCustomTheme: (theme: any) => void;
+  updateCustomTheme: (updates: Partial<CustomTheme>) => void;
+  setCustomTheme: (theme: CustomTheme | null) => void;
 
   addField: (type: FieldType) => void;
   addServerField: (field: EditorField) => void;
@@ -58,6 +74,10 @@ interface FormEditorState {
   markSaved: () => void;
   markDirty: () => void;
   reset: () => void;
+
+  setCurrentPage: (page: number) => void;
+  addPage: () => void;
+  removePage: (pageNumber: number) => void;
 }
 
 let fieldCounter = 0;
@@ -79,6 +99,8 @@ export const useFormEditorStore = create<FormEditorState>((set, get) => ({
   showFieldIcons: false,
   isDirty: false,
   lastSavedAt: null,
+  currentPage: 1,
+  pageCount: 1,
 
   setFormData: (data) =>
     set({
@@ -92,6 +114,8 @@ export const useFormEditorStore = create<FormEditorState>((set, get) => ({
       showFieldIcons: data.showFieldIcons ?? false,
       isDirty: false,
       selectedFieldId: null,
+      currentPage: 1,
+      pageCount: 1,
     }),
 
   setTitle: (title) => set({ title, isDirty: true }),
@@ -117,6 +141,7 @@ export const useFormEditorStore = create<FormEditorState>((set, get) => ({
 
   addField: (type) => {
     let placeholder = "";
+    let defaultOptions: { label: string; value: string }[] | undefined;
     switch (type) {
       case "TEXT": placeholder = "Type your answer here..."; break;
       case "TEXTAREA": placeholder = "Type your detailed answer here..."; break;
@@ -124,15 +149,15 @@ export const useFormEditorStore = create<FormEditorState>((set, get) => ({
       case "NUMBER": placeholder = "e.g., 42"; break;
       case "DATE": placeholder = "Pick a date"; break;
       case "TIME": placeholder = "Select time"; break;
-      case "SELECT": placeholder = "Select an option"; break;
-      case "MULTI_SELECT": placeholder = "Select options"; break;
+      case "SELECT": placeholder = "Select an option"; defaultOptions = [{ label: "Option 1", value: "Option 1" }, { label: "Option 2", value: "Option 2" }]; break;
+      case "MULTI_SELECT": placeholder = "Select options"; defaultOptions = [{ label: "Option 1", value: "Option 1" }, { label: "Option 2", value: "Option 2" }]; break;
       case "PASSWORD": placeholder = "Enter password"; break;
-      case "YES_NO": placeholder = "Yes or No"; break;
+      case "YES_NO": placeholder = "Yes or No"; defaultOptions = [{ label: "Yes", value: "true" }, { label: "No", value: "false" }]; break;
       case "RATING": placeholder = "Rate 1-5"; break;
       case "TAGS": placeholder = "Add tags"; break;
       case "TOGGLE": placeholder = "Toggle on/off"; break;
-      case "RADIO": placeholder = "Select one"; break;
-      case "CHECKBOX": placeholder = "Check options"; break;
+      case "RADIO": placeholder = "Select one"; defaultOptions = [{ label: "Option 1", value: "Option 1" }, { label: "Option 2", value: "Option 2" }]; break;
+      case "CHECKBOX": placeholder = "Check options"; defaultOptions = [{ label: "Option 1", value: "Option 1" }, { label: "Option 2", value: "Option 2" }]; break;
       case "FILE_UPLOAD": placeholder = "Upload file"; break;
     }
 
@@ -142,6 +167,7 @@ export const useFormEditorStore = create<FormEditorState>((set, get) => ({
       label: FIELD_TYPE_LABELS[type] ?? type,
       placeholder: placeholder || undefined,
       required: false,
+      options: defaultOptions,
     };
     set((state) => ({
       fields: [...state.fields, newField],
@@ -195,5 +221,42 @@ export const useFormEditorStore = create<FormEditorState>((set, get) => ({
       showFieldIcons: false,
       isDirty: false,
       lastSavedAt: null,
+      currentPage: 1,
+      pageCount: 1,
     }),
-}));
+
+  setCurrentPage: (page) =>
+    set((state) => ({ currentPage: Math.max(1, Math.min(page, state.pageCount)) })),
+
+  addPage: () =>
+    set((state) => ({
+      pageCount: state.pageCount + 1,
+      currentPage: state.pageCount + 1,
+      isDirty: true,
+    })),
+
+  removePage: (pageNumber) =>
+    set((state) => {
+      if (state.pageCount <= 1) return state;
+      if (pageNumber < 1 || pageNumber > state.pageCount) return state;
+
+      const newCurrentPage =
+        state.currentPage > pageNumber
+          ? state.currentPage - 1
+          : state.currentPage === pageNumber
+            ? 1
+            : state.currentPage;
+
+      return {
+        pageCount: state.pageCount - 1,
+        currentPage: Math.min(newCurrentPage, state.pageCount - 1),
+        fields: state.fields
+          .filter((f) => (f.pageNumber ?? 1) !== pageNumber)
+          .map((f) => {
+            const pn = f.pageNumber ?? 1;
+            return pn > pageNumber ? { ...f, pageNumber: pn - 1 } : f;
+          }),
+        isDirty: true,
+      };
+    }),
+ }));

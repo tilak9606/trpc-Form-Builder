@@ -13,7 +13,11 @@ interface ProGateProps {
 }
 
 export function ProGate({ children, feature, description }: ProGateProps) {
-  const { plan } = useUserPlan();
+  const { plan, isLoading } = useUserPlan();
+
+  if (isLoading) {
+    return null;
+  }
 
   if (plan?.plan === "pro" || plan?.plan === "enterprise") {
     return <>{children}</>;

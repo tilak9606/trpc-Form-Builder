@@ -14,7 +14,7 @@ export const useCreateForm = () => {
         status,
     } = trpc.form.createForm.useMutation({
         onSuccess: async () => {
-            await utils.form.invalidate();
+            await utils.form.listForms.invalidate();
             await utils.folder.invalidate();
         },
     });
@@ -33,7 +33,7 @@ export const useCreateForm = () => {
 
 export const useListForms = (folderId?: string | null) => {
     const {
-        data: forms,
+        data: listData,
         error,
         isFetched,
         isFetching,
@@ -42,7 +42,8 @@ export const useListForms = (folderId?: string | null) => {
     } = trpc.form.listForms.useQuery(folderId !== undefined ? { folderId } : undefined);
 
     return {
-        forms,
+        forms: listData?.forms,
+        weeklySubmissions: listData?.weeklySubmissions,
         error,
         isFetched,
         isFetching,
@@ -51,7 +52,7 @@ export const useListForms = (folderId?: string | null) => {
     };
 };
 
-export const useGetFormWithFields = (formId: string, status?: "DRAFT" | "PUBLISHED" | "CLOSED") => {
+export const useGetFormWithFields = (formId: string | undefined) => {
     const {
         data: form,
         error,
@@ -59,7 +60,10 @@ export const useGetFormWithFields = (formId: string, status?: "DRAFT" | "PUBLISH
         isFetching,
         isLoading,
         status: queryStatus,
-    } = trpc.form.getFormWithFields.useQuery({ formId, status });
+    } = trpc.form.getByIdWithFields.useQuery(
+        { formId: formId ?? "" },
+        { enabled: !!formId },
+    );
 
     return {
         form,
@@ -82,8 +86,9 @@ export const useUpdateForm = () => {
         isSuccess,
         status,
     } = trpc.form.updateForm.useMutation({
-        onSuccess: async () => {
-            await utils.form.invalidate();
+        onSuccess: async (data, variables) => {
+            await utils.form.getByIdWithFields.invalidate({ formId: variables.formId });
+            await utils.form.listForms.invalidate();
         },
     });
 
@@ -109,7 +114,7 @@ export const useDeleteForm = () => {
         status,
     } = trpc.form.deleteForm.useMutation({
         onSuccess: async () => {
-            await utils.form.invalidate();
+            await utils.form.listForms.invalidate();
         },
     });
 
@@ -134,7 +139,7 @@ export const useImportForm = () => {
 
     const { mutateAsync: importFormAsync, mutate: importForm, isPending, error } = trpc.form.importForm.useMutation({
         onSuccess: async () => {
-            await utils.form.invalidate();
+            await utils.form.listForms.invalidate();
         },
     });
 
@@ -152,14 +157,42 @@ export const usePublishForm = () => {
         isSuccess,
         status,
     } = trpc.form.publishForm.useMutation({
-        onSuccess: async () => {
-            await utils.form.invalidate();
+        onSuccess: async (data, variables) => {
+            await utils.form.getByIdWithFields.invalidate({ formId: variables.formId });
+            await utils.form.listForms.invalidate();
         },
     });
 
     return {
         publishFormAsync,
         publishForm,
+        error,
+        isPending,
+        isSuccess,
+        status,
+    };
+};
+
+export const useUnpublishForm = () => {
+    const utils = trpc.useUtils();
+
+    const {
+        mutateAsync: unpublishFormAsync,
+        mutate: unpublishForm,
+        error,
+        isPending,
+        isSuccess,
+        status,
+    } = trpc.form.unpublishForm.useMutation({
+        onSuccess: async (data, variables) => {
+            await utils.form.getByIdWithFields.invalidate({ formId: variables.formId });
+            await utils.form.listForms.invalidate();
+        },
+    });
+
+    return {
+        unpublishFormAsync,
+        unpublishForm,
         error,
         isPending,
         isSuccess,
@@ -176,7 +209,7 @@ export const useDuplicateForm = () => {
         isPending,
     } = trpc.form.duplicateForm.useMutation({
         onSuccess: async () => {
-            await utils.form.invalidate();
+            await utils.form.listForms.invalidate();
         },
     });
 

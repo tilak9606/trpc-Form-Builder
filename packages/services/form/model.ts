@@ -1,9 +1,15 @@
 import { z } from "zod";
+import type { FieldType } from "@repo/database/constants/field-types";
+import {
+    createFormSchema,
+    updateFormSchema,
+    FORM_STATUSES,
+    FORM_VISIBILITIES,
+    type FormStatus,
+    type FormVisibility,
+} from "@repo/database/schemas/form";
 
-export const createFormInput = z.object({
-    title: z.string().max(100).describe("Title of the form"),
-    description: z.string().max(300).optional().describe("Description of the form"),
-    slug: z.string().max(100).optional().describe("Custom slug (auto-generated from title if not provided)"),
+export const createFormInput = createFormSchema.extend({
     createdBy: z.string().describe("ID of the creator"),
     folderId: z.string().nullable().optional().describe("Folder ID to place the form in"),
 });
@@ -17,26 +23,8 @@ export const listFormsByUserIdInput = z.object({
 
 export type ListFormsByUserIdInputType = z.infer<typeof listFormsByUserIdInput>;
 
-export const updateFormInput = z.object({
-    id: z.uuid().describe("UUID of the form to update"),
+export const updateFormInput = updateFormSchema.extend({
     userId: z.string().describe("ID of the user requesting the update"),
-    title: z.string().max(100).optional().describe("New title"),
-    description: z.string().max(300).optional().describe("New description"),
-    slug: z.string().max(100).optional().describe("New slug"),
-    status: z.enum(["DRAFT", "PUBLISHED", "CLOSED"]).optional().describe("New status"),
-    folderId: z.string().nullable().optional().describe("Folder ID to move the form to"),
-    notifyEmail: z.boolean().optional().describe("Enable email notifications on submission"),
-    notifyEmailTo: z.string().email().optional().describe("Email to send submission notifications to"),
-    themePrimaryColor: z.string().max(7).optional().describe("Primary color hex"),
-    themeBackgroundColor: z.string().max(7).optional().describe("Background color hex"),
-    themeTextColor: z.string().max(7).optional().describe("Text color hex"),
-    themeLabelColor: z.string().max(7).optional().describe("Label color hex"),
-    themeFontFamily: z.string().max(50).optional().describe("Font family name"),
-    themeBorderRadius: z.string().max(10).optional().describe("Border radius value"),
-    themeButtonText: z.string().max(50).optional().describe("Submit button text"),
-    themeButtonTextColor: z.string().max(7).optional().describe("Submit button text color hex"),
-    themeLogoUrl: z.string().optional().describe("Logo image URL"),
-    thankYouUrl: z.string().optional().describe("URL to redirect after submission"),
 });
 
 export type UpdateFormInputType = z.infer<typeof updateFormInput>;
@@ -49,7 +37,7 @@ export const deleteFormInput = z.object({
 export type DeleteFormInputType = z.infer<typeof deleteFormInput>;
 
 export const getFormBySlugInput = z.object({
-    slug: z.string().max(100).describe("Slug of the form"),
+    slug: z.string().max(64).describe("Slug of the form"),
 });
 
 export type GetFormBySlugInputType = z.infer<typeof getFormBySlugInput>;
@@ -80,14 +68,14 @@ export const formFieldExportSchema = z.object({
 export const formExportSchema = z.object({
     title: z.string().max(100),
     description: z.string().max(300).optional(),
-    slug: z.string().max(100),
+    slug: z.string().max(64),
     fields: z.array(formFieldExportSchema),
 });
 
 export const importFormInputDataSchema = z.object({
     title: z.string().max(100),
     description: z.string().max(300).optional(),
-    slug: z.string().max(100).optional(),
+    slug: z.string().max(64).optional(),
     fields: z.array(formFieldExportSchema),
 });
 

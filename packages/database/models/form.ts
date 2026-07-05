@@ -1,42 +1,60 @@
-import { pgTable, uuid, timestamp, varchar, text, boolean } from "drizzle-orm/pg-core";
+import { pgTable, uuid, timestamp, varchar, text, boolean, jsonb, pgEnum, index } from "drizzle-orm/pg-core";
+import { sql, relations } from "drizzle-orm";
 import { usersTable } from "./user";
 import { foldersTable } from "./folder";
+import { formFieldsTable } from "./form-field";
 
-export const formStatusEnum = {
-    DRAFT: "DRAFT",
-    PUBLISHED: "PUBLISHED",
-    CLOSED: "CLOSED",
-} as const;
+export const formStatusEnum = pgEnum("form_status", ["draft", "published", "archived"]);
+export const formVisibilityEnum = pgEnum("form_visibility", ["public", "unlisted", "private"]);
 
-export type FormStatus = (typeof formStatusEnum)[keyof typeof formStatusEnum];
+export type FormStatus = "draft" | "published" | "archived";
+export type FormVisibility = "public" | "unlisted" | "private";
 
-export const formsTable = pgTable("forms", {
-    id: uuid("id").primaryKey().defaultRandom(),
+export const formsTable = pgTable(
+    "forms",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
 
-    title: varchar("title", { length: 100 }).notNull(),
-    description: varchar("description", { length: 300 }),
-    slug: varchar("slug", { length: 100 }).unique().notNull(),
-    status: varchar("status", { length: 10 }).$type<FormStatus>().default("DRAFT").notNull(),
+        title: varchar("title", { length: 255 }).notNull(),
+        description: text("description"),
+        slug: varchar("slug", { length: 64 }).unique().notNull(),
+        status: formStatusEnum("status").default("draft").notNull(),
+        visibility: formVisibilityEnum("visibility").default("public").notNull(),
 
-    createdBy: text("created_by").references(() => usersTable.id),
+        createdBy: text("created_by")
+            .notNull()
+            .references(() => usersTable.id, { onDelete: "cascade" }),
 
-    folderId: uuid("folder_id").references(() => foldersTable.id, { onDelete: "set null" }),
+        folderId: uuid("folder_id").references(() => foldersTable.id, { onDelete: "set null" }),
 
-    notifyEmail: boolean("notify_email").notNull().default(false),
-    notifyEmailTo: varchar("notify_email_to", { length: 255 }),
+        themeId: varchar("theme_id", { length: 255 }),
 
-    themePrimaryColor: varchar("theme_primary_color", { length: 7 }).default("#3b82f6"),
-    themeBackgroundColor: varchar("theme_background_color", { length: 7 }).default("#000000"),
-    themeTextColor: varchar("theme_text_color", { length: 7 }).default("#ffffff"),
-    themeLabelColor: varchar("theme_label_color", { length: 7 }).default("#ffffff"),
-    themeFontFamily: varchar("theme_font_family", { length: 50 }).default("Inter"),
-    themeBorderRadius: varchar("theme_border_radius", { length: 10 }).default("0.5rem"),
-    themeButtonText: varchar("theme_button_text", { length: 50 }).default("Submit"),
-    themeButtonTextColor: varchar("theme_button_text_color", { length: 7 }).default("#ffffff"),
-    themeLogoUrl: text("theme_logo_url"),
+        coverImageUrl: text("cover_image_url"),
 
-    thankYouUrl: text("thank_you_url"),
+        metaTitle: varchar("meta_title", { length: 60 }),
+        metaDescription: text("meta_description"),
 
-    createdAt: timestamp("created_at").defaultNow(),
-    updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()),
-});
+        settings: jsonb("settings").notNull().default({}),
+
+        passwordHash: text("password_hash"),
+
+        publishedAt: timestamp("published_at"),
+        archivedAt: timestamp("archived_at"),
+        deletedAt: timestamp("deleted_at"),
+
+        createdAt: timestamp("created_at").defaultNow().notNull(),
+        updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => sql`now()`),
+    },
+    (table) => ({
+        creatorIdx: index("idx_forms_creator").on(table.createdBy),
+        slugIdx: index("idx_forms_slug").on(table.slug),
+        themeIdx: index("idx_forms_theme").on(table.themeId),
+    })
+);
+
+export const formsRelations = relations(formsTable, ({ many }) => ({
+    fields: many(formFieldsTable),
+}));
+
+export type SelectForm = typeof formsTable.$inferSelect;
+export type InsertForm = typeof formsTable.$inferInsert;

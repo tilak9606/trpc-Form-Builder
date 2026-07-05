@@ -1,12 +1,17 @@
 import { z } from "zod";
 import { fieldWithDetailsOutputModel } from "../form-field/model";
 
-export const formStatusEnum = z.enum(["DRAFT", "PUBLISHED", "CLOSED"]);
+export const FORM_VISIBILITIES = ["public", "unlisted", "private"] as const;
+export const FORM_STATUSES = ["draft", "published", "archived"] as const;
+
+export const formVisibilityEnum = z.enum(FORM_VISIBILITIES);
+export const formStatusEnum = z.enum(FORM_STATUSES);
 
 export const createFormInputModel = z.object({
-    title: z.string().max(100).describe("Title of the form"),
-    description: z.string().max(300).optional().describe("Description of the form"),
+    title: z.string().max(255).describe("Title of the form"),
+    description: z.string().max(2000).optional().describe("Description of the form"),
     folderId: z.string().nullable().optional().describe("Folder ID to place the form in"),
+    visibility: formVisibilityEnum.default("public").describe("Form visibility"),
 });
 
 export const createFormOutputModel = z.object({
@@ -17,23 +22,50 @@ export const createFormOutputModel = z.object({
 export const listFormsInputModel = z.object({
     folderId: z.string().nullable().optional().describe("Filter by folder ID"),
 }).optional();
-export const listFormsOutputModel = z.array(
-    z.object({
-        id: z.string().describe("ID of the form"),
-        title: z.string().describe("Title of the form"),
-        description: z.string().nullable().optional().describe("Description of the form"),
-        slug: z.string().describe("Slug of the form"),
-        status: z.string().describe("Status of the form"),
-        folderId: z.string().nullable().describe("ID of the folder"),
-        createdAt: z.date().nullable().describe("Creation timestamp"),
-        updatedAt: z.date().nullable().describe("Last updated timestamp"),
-        submissionCount: z.number().describe("Number of submissions"),
-    }),
-);
+
+export const listFormsOutputModel = z.object({
+    forms: z.array(
+        z.object({
+            id: z.string().describe("ID of the form"),
+            title: z.string().describe("Title of the form"),
+            description: z.string().nullable().optional().describe("Description of the form"),
+            slug: z.string().describe("Slug of the form"),
+            status: z.string().describe("Status of the form"),
+            visibility: z.string().describe("Visibility of the form"),
+            folderId: z.string().nullable().describe("ID of the folder"),
+            coverImageUrl: z.string().nullable().optional().describe("Cover image URL"),
+            createdAt: z.date().nullable().describe("Creation timestamp"),
+            updatedAt: z.date().nullable().describe("Last updated timestamp"),
+            submissionCount: z.number().describe("Number of submissions"),
+            totalViews: z.number().describe("Total views"),
+            totalStarts: z.number().describe("Total starts"),
+            totalSubmissions: z.number().describe("Total submissions"),
+        }),
+    ),
+    weeklySubmissions: z.number().describe("Submissions in the last 7 days"),
+});
 
 export const getFormInputModel = z.object({
-    formId: z.string().describe("UUID or slug of the form to fetch"),
-    status: z.enum(["DRAFT", "PUBLISHED", "CLOSED"]).optional().describe("Filter by form status"),
+    formId: z.string().describe("UUID of the form to fetch"),
+});
+
+export const getFormBasicOutputModel = z.object({
+    id: z.string(),
+    title: z.string(),
+    description: z.string().nullable(),
+    slug: z.string(),
+    status: z.string(),
+    visibility: z.string(),
+    folderId: z.string().nullable(),
+    coverImageUrl: z.string().nullable().optional(),
+    metaTitle: z.string().nullable().optional(),
+    metaDescription: z.string().nullable().optional(),
+    themeId: z.string().nullable().optional(),
+    settings: z.any(),
+    publishedAt: z.string().nullable().optional(),
+    archivedAt: z.string().nullable().optional(),
+    createdAt: z.string().nullable(),
+    updatedAt: z.string().nullable(),
 });
 
 export const getFormOutputModel = z.object({
@@ -42,49 +74,46 @@ export const getFormOutputModel = z.object({
     description: z.string().nullable(),
     slug: z.string(),
     status: z.string(),
+    visibility: z.string(),
     folderId: z.string().nullable(),
-    notifyEmail: z.boolean().optional(),
-    notifyEmailTo: z.string().nullable().optional(),
-    themePrimaryColor: z.string().nullable().optional(),
-    themeBackgroundColor: z.string().nullable().optional(),
-    themeTextColor: z.string().nullable().optional(),
-    themeLabelColor: z.string().nullable().optional(),
-    themeFontFamily: z.string().nullable().optional(),
-    themeBorderRadius: z.string().nullable().optional(),
-    themeButtonText: z.string().nullable().optional(),
-    themeButtonTextColor: z.string().nullable().optional(),
-    themeLogoUrl: z.string().nullable().optional(),
-    thankYouUrl: z.string().nullable().optional(),
+    coverImageUrl: z.string().nullable().optional(),
+    metaTitle: z.string().nullable().optional(),
+    metaDescription: z.string().nullable().optional(),
+    themeId: z.string().nullable().optional(),
+    settings: z.any(),
+    publishedAt: z.string().nullable().optional(),
+    archivedAt: z.string().nullable().optional(),
     createdAt: z.string().nullable(),
     updatedAt: z.string().nullable(),
     fields: z.array(fieldWithDetailsOutputModel),
 });
 
 export const getFormBySlugInputModel = z.object({
-    slug: z.string().max(100).describe("Slug of the form to fetch"),
+    slug: z.string().max(64).describe("Slug of the form to fetch"),
 });
 
 export const getFormBySlugOutputModel = getFormOutputModel;
 
 export const updateFormInputModel = z.object({
     formId: z.string().describe("UUID of the form to update"),
-    title: z.string().max(100).optional().describe("New title"),
-    description: z.string().max(300).optional().describe("New description"),
-    slug: z.string().max(100).optional().describe("New slug"),
-    folderId: z.string().nullable().optional().describe("Folder ID to move to"),
-    status: formStatusEnum.optional().describe("New form status (DRAFT, PUBLISHED, CLOSED)"),
-    notifyEmail: z.boolean().optional().describe("Enable email notifications on submission"),
-    notifyEmailTo: z.string().email().optional().describe("Email address to send notifications to"),
-    themePrimaryColor: z.string().max(7).optional().describe("Primary color hex"),
-    themeBackgroundColor: z.string().max(7).optional().describe("Background color hex"),
-    themeTextColor: z.string().max(7).optional().describe("Text color hex"),
-    themeLabelColor: z.string().max(7).optional().describe("Label color hex"),
-    themeFontFamily: z.string().max(50).optional().describe("Font family name"),
-    themeBorderRadius: z.string().max(10).optional().describe("Border radius value"),
-    themeButtonText: z.string().max(50).optional().describe("Submit button text"),
-    themeButtonTextColor: z.string().max(7).optional().describe("Submit button text color hex"),
-    themeLogoUrl: z.string().optional().describe("Logo image URL"),
-    thankYouUrl: z.string().optional().describe("URL to redirect after submission"),
+    title: z.string().max(255).optional().describe("New title"),
+    description: z.string().max(2000).optional().describe("New description"),
+    slug: z.string().max(64).optional().describe("New slug"),
+    themeId: z.string().max(255).optional().describe("Theme ID"),
+    visibility: formVisibilityEnum.optional().describe("New form visibility"),
+    coverImageUrl: z.string().url().optional().nullable().describe("Cover/banner image URL"),
+    metaTitle: z.string().max(60).optional().describe("Meta title for SEO"),
+    metaDescription: z.string().max(160).optional().describe("Meta description for SEO"),
+    settings: z
+        .object({
+            successMessage: z.string().max(500).optional(),
+            redirectUrl: z.string().url().optional().nullable(),
+            showProgressBar: z.boolean().optional(),
+            allowMultipleSubmissions: z.boolean().optional(),
+            showFieldIcons: z.boolean().optional(),
+            customTheme: z.any().optional(),
+        })
+        .optional(),
 });
 
 export const updateFormOutputModel = z.object({
@@ -101,13 +130,34 @@ export const deleteFormOutputModel = z.object({
 
 export const publishFormInputModel = z.object({
     formId: z.string().describe("UUID of the form"),
-    status: z.enum(["PUBLISHED", "CLOSED"]).describe("New status (PUBLISHED or CLOSED)"),
 });
 
 export const publishFormOutputModel = z.object({
     id: z.string(),
     status: z.string(),
+    slug: z.string(),
 });
+
+export const unpublishFormInputModel = z.object({
+    formId: z.string().describe("UUID of the form"),
+});
+
+export const unpublishFormOutputModel = z.object({
+    id: z.string(),
+    status: z.string(),
+});
+
+export const archiveFormInputModel = z.object({
+    formId: z.string().describe("UUID of the form"),
+});
+
+export const archiveFormOutputModel = z.object({
+    id: z.string(),
+    status: z.string(),
+});
+
+// cloneFormInputModel / cloneFormOutputModel intentionally removed — the `clone` procedure
+// was a dead duplicate of `duplicateForm` below and has been dropped from route.ts.
 
 export type GetFormBySlugInput = z.infer<typeof getFormBySlugInputModel>;
 
@@ -125,6 +175,8 @@ export const formFieldExportModel = z.object({
     validation: z.object({
         min: z.number().optional(),
         max: z.number().optional(),
+        minLength: z.number().optional(),
+        maxLength: z.number().optional(),
         pattern: z.string().optional(),
     }).optional(),
     page: z.number().optional(),

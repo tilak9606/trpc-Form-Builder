@@ -19,6 +19,7 @@ import {
   Layout,
   Palette,
   Eye,
+  Archive,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -55,7 +56,10 @@ import { toast } from "~/lib/toast";
 import { handleTrpcError } from "~/lib/api-error";
 import { ShareModal } from "~/components/form-builder/share-modal";
 import { useCreateTemplate } from "~/hooks/api/form-template";
+import { useFormEditorStore } from "~/lib/stores/form-editor-store";
+import { mapServerFieldsToEditorFields } from "~/lib/form-field-mapper";
 import { cn } from "~/lib/utils";
+import type { FieldType } from "@repo/database/constants/field-types";
 
 const DRAFT_STEPS = [
   { id: "build", label: "Editor", path: "", icon: Layout },
@@ -69,6 +73,7 @@ const PUBLISHED_STEPS = [
   { id: "analytics", label: "Analytics", path: "/analytics", icon: BarChart2 },
   { id: "submissions", label: "Submissions", path: "/submissions", icon: MessageSquare },
   { id: "settings", label: "Settings", path: "/settings", icon: Settings },
+  { id: "email", label: "Email", path: "/email-settings", icon: MessageSquare },
 ] as const;
 
 interface FormContextValue {
@@ -97,11 +102,12 @@ export default function FormEditorLayout({
   const router = useRouter();
   const formId = params.id;
 
-  const { data: form, isLoading, refetch } = trpc.form.getFormWithFields.useQuery(
+  const { data: form, isLoading, refetch } = trpc.form.getByIdWithFields.useQuery(
     { formId },
-    { enabled: !!formId }
+    { enabled: !!formId },
   );
   const utils = trpc.useUtils();
+  const store = useFormEditorStore();
 
   const [isEditingTitle, setIsEditingTitle] = React.useState(false);
   const [titleDraft, setTitleDraft] = React.useState("");
@@ -109,38 +115,144 @@ export default function FormEditorLayout({
 
   const updateMutation = trpc.form.updateForm.useMutation({
     onSuccess: () => {
-      utils.form.getFormWithFields.invalidate({ formId });
+      utils.form.getByIdWithFields.invalidate({ formId });
       utils.form.listForms.invalidate();
     },
     onError: (err) => handleTrpcError(err),
   });
 
+  const createFieldMutation = trpc.formField.createField.useMutation();
+  const updateFieldMutation = trpc.formField.updateField.useMutation();
+  const deleteFieldMutation = trpc.formField.deleteField.useMutation();
+  const reorderFieldMutation = trpc.formField.reorderFields.useMutation();
+
   const publishMutation = trpc.form.publishForm.useMutation({
     onSuccess: (data) => {
-      utils.form.getFormWithFields.invalidate({ formId });
+      utils.form.getByIdWithFields.invalidate({ formId });
       utils.form.listForms.invalidate();
+      const url = `${window.location.origin}/form/${data.slug}`;
       toast.success("Form published!", {
         action: {
           label: "Copy Link",
           onClick: () => {
-            const slug = (form as any)?.slug;
-            if (slug) {
-              const url = `${window.location.origin}/form/${slug}`;
-              navigator.clipboard.writeText(url);
-              toast.success("Link copied!");
-            }
+            navigator.clipboard.writeText(url);
+            toast.success("Link copied!");
           },
         },
       });
+      setIsPublishing(false);
+    },
+    onError: (err) => {
+      handleTrpcError(err);
+      setIsPublishing(false);
+    },
+  });
+
+  const [isPublishing, setIsPublishing] = React.useState(false);
+
+  const handlePublish = async () => {
+    if (isPublishing) return;
+    setIsPublishing(true);
+    try {
+      await updateMutation.mutateAsync({
+        formId,
+        title: store.title,
+        description: store.description || undefined,
+        coverImageUrl: store.coverImageUrl,
+        settings: {
+          ...((form as any)?.settings || {}),
+          showFieldIcons: store.showFieldIcons,
+          customTheme: store.customTheme,
+        },
+      });
+
+      // Bug #2 fix: `publishFields` is now ALWAYS in EditorField shape (`required`,
+      // `helpText`, `pageNumber`), whichever branch runs. Previously the fallback branch
+      // used the raw server field shape (`isRequired`, `description`, `page`) directly,
+      // which silently produced `description: undefined`, `isRequired: undefined -> false`,
+      // and `page: 1` for every field below once mapped through `.helpText`/`.required`/
+      // `.pageNumber` (properties that don't exist on the raw shape). The store-hydration
+      // guard also now checks `store.formId === formId`, not just array length, so a stale
+      // store from a previously-visited form can't be mistaken for "already hydrated".
+      const publishFields =
+        store.formId === formId && store.fields.length > 0
+          ? store.fields
+          : mapServerFieldsToEditorFields((form as any)?.fields);
+
+      const serverFields = (form as any)?.fields || [];
+      const deletedIds = serverFields
+        .map((f: any) => f.id)
+        .filter((id: string) => !publishFields.find((f: any) => f.id === id));
+
+      for (const id of deletedIds) {
+        await deleteFieldMutation.mutateAsync({ id, formId });
+      }
+
+      const toApiOptions = (options?: { label: string; value: string }[]) =>
+        options?.map((o) => o.label) ?? undefined;
+
+      const createResults = await Promise.all(
+        publishFields
+          .filter((f: any) => f.id.startsWith("temp_"))
+          .map(async (field: any) => {
+            const res = await createFieldMutation.mutateAsync({
+              formId,
+              type: field.type as FieldType,
+              label: field.label,
+              placeholder: field.placeholder,
+              description: field.helpText,
+              isRequired: field.required,
+              options: toApiOptions(field.options),
+              page: field.pageNumber ?? 1,
+            });
+            return { tempId: field.id, realId: res.id };
+          }),
+      );
+
+      await Promise.all(
+        publishFields
+          .filter((f: any) => !f.id.startsWith("temp_"))
+          .map((field: any) =>
+            updateFieldMutation.mutateAsync({
+              id: field.id,
+              formId,
+              label: field.label,
+              placeholder: field.placeholder,
+              description: field.helpText,
+              isRequired: field.required,
+              options: toApiOptions(field.options),
+              page: field.pageNumber ?? 1,
+            }),
+          ),
+      );
+
+      const idMap = new Map(createResults.map((c) => [c.tempId, c.realId]));
+      const finalIds = publishFields.map((f: any) => idMap.get(f.id) || f.id);
+
+      await reorderFieldMutation.mutateAsync({ formId, fieldIds: finalIds });
+      store.markSaved();
+
+      publishMutation.mutate({ formId });
+    } catch (err) {
+      handleTrpcError(err);
+      setIsPublishing(false);
+    }
+  };
+
+  const unpublishMutation = trpc.form.unpublishForm.useMutation({
+    onSuccess: () => {
+      utils.form.getByIdWithFields.invalidate({ formId });
+      utils.form.listForms.invalidate();
+      toast.success("Form unpublished.");
     },
     onError: (err) => handleTrpcError(err),
   });
 
-  const unpublishMutation = trpc.form.publishForm.useMutation({
+    const archiveMutation = trpc.form.archiveForm.useMutation({
     onSuccess: () => {
-      utils.form.getFormWithFields.invalidate({ formId });
       utils.form.listForms.invalidate();
-      toast.success("Form unpublished.");
+      toast.success("Form archived.");
+      router.push("/dashboard");
     },
     onError: (err) => handleTrpcError(err),
   });
@@ -154,10 +266,10 @@ export default function FormEditorLayout({
     onError: (err) => handleTrpcError(err),
   });
 
-  const duplicateMutation = trpc.form.duplicateForm.useMutation({
+  const cloneMutation = trpc.form.duplicateForm.useMutation({
     onSuccess: (data: any) => {
       utils.form.listForms.invalidate();
-      toast.success("Form duplicated!");
+      toast.success("Form cloned!");
       if (data?.id) router.push(`/dashboard/forms/${data.id}`);
     },
     onError: (err) => handleTrpcError(err),
@@ -170,7 +282,7 @@ export default function FormEditorLayout({
   const { createTemplateAsync, isPending: creatingTemplate } = useCreateTemplate();
 
   const basePath = `/dashboard/forms/${formId}`;
-  const isPublished = (form as any)?.status === "PUBLISHED";
+  const isPublished = (form as any)?.status === "published";
   const activeSteps = isPublished ? PUBLISHED_STEPS : DRAFT_STEPS;
 
   const handleSaveAsTemplate = async () => {
@@ -202,7 +314,7 @@ export default function FormEditorLayout({
   const computeStepIndex = React.useCallback(() => {
     const idx = activeSteps.findIndex((s) => {
       if (s.id === "build") {
-        return pathname === basePath || pathname === `${basePath}/`;
+        return pathname === basePath;
       }
       return pathname.startsWith(`${basePath}${s.path}`);
     });
@@ -232,6 +344,8 @@ export default function FormEditorLayout({
   const saveTitle = () => {
     if (titleDraft.trim() && titleDraft !== (form as any)?.title) {
       updateMutation.mutate({ formId, title: titleDraft.trim() });
+      // Sync Zustand store so the editor canvas reflects the new title
+      store.setTitle(titleDraft.trim());
     }
     setIsEditingTitle(false);
   };
@@ -243,33 +357,22 @@ export default function FormEditorLayout({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col h-full">
-        <div className="h-14 border-b border-border bg-background shrink-0 flex items-center px-6 gap-4">
-          <Skeleton className="size-8 rounded-lg" />
-          <Skeleton className="h-5 w-48" />
-          <div className="flex-1 flex justify-center">
-            <div className="flex items-center gap-2">
-              <Skeleton className="h-8 w-20 rounded-full" />
-              <Skeleton className="h-px w-8" />
-              <Skeleton className="h-8 w-20 rounded-full" />
-              <Skeleton className="h-px w-8" />
-              <Skeleton className="h-8 w-20 rounded-full" />
-            </div>
-          </div>
-        </div>
-        <div className="flex-1 p-6">
-          <Skeleton className="h-full rounded-2xl" />
-        </div>
+      <div className="p-6 space-y-4">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-96 w-full rounded-2xl" />
       </div>
     );
   }
 
   if (!form) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4">
+      <div className="p-6 text-center">
         <h2 className="text-xl font-semibold text-foreground">Form not found</h2>
-        <p className="text-muted-foreground">This form may have been deleted.</p>
-        <Button variant="forest" asChild>
+        <p className="mt-2 text-muted-foreground">
+          This form may have been deleted.
+        </p>
+        <Button variant="forest" asChild className="mt-4">
           <Link href="/dashboard">Back to dashboard</Link>
         </Button>
       </div>
@@ -277,14 +380,15 @@ export default function FormEditorLayout({
   }
 
   const formData = form as any;
-  const isDraft = formData.status === "DRAFT";
+  const isDraft = formData.status === "draft";
+  const isArchived = formData.status === "archived";
   const isOnPreview = activeSteps[activeStepIndex]?.id === "preview";
 
   return (
     <FormContext.Provider value={{ form, isLoading, refetch }}>
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col flex-1 min-h-0 h-full">
         {/* Top bar */}
-        <div className="h-14 flex items-center gap-4 px-6 border-b border-border bg-background/95 backdrop-blur shrink-0 z-40">
+        <div className="sticky top-0 z-40 h-14 flex items-center gap-4 px-6 border-b border-border bg-background/95 backdrop-blur shrink-0">
           {/* Back button */}
           <Button
             variant="ghost"
@@ -323,7 +427,7 @@ export default function FormEditorLayout({
                 )}
               </button>
             )}
-            <StatusBadge status={(formData.status ?? "DRAFT").toLowerCase() as any} />
+            <StatusBadge status={formData.status ?? "draft"} />
           </div>
 
           {/* Stepper — centered */}
@@ -372,7 +476,7 @@ export default function FormEditorLayout({
           {/* Action bar */}
           <div className="flex items-center gap-2 shrink-0">
             {/* Preview step shows Save Draft + Publish */}
-            {isOnPreview && isDraft && (
+            {isOnPreview && (
               <>
                 <Button
                   variant="outline"
@@ -384,16 +488,19 @@ export default function FormEditorLayout({
                   }}
                   disabled={updateMutation.isPending}
                 >
+                  <Eye className="size-4 mr-1" />
                   {updateMutation.isPending ? "Saving…" : "Save Draft"}
                 </Button>
-                <Button
-                  variant="forest"
-                  size="sm"
-                  onClick={() => publishMutation.mutate({ formId, status: "PUBLISHED" })}
-                  disabled={publishMutation.isPending}
-                >
-                  {publishMutation.isPending ? "Publishing…" : "Publish"}
-                </Button>
+                {isDraft && (
+                  <Button
+                    variant="forest"
+                    size="sm"
+                    onClick={handlePublish}
+                    disabled={isPublishing}
+                  >
+                    {isPublishing ? "Publishing…" : "Publish"}
+                  </Button>
+                )}
               </>
             )}
 
@@ -401,7 +508,7 @@ export default function FormEditorLayout({
               <Button
                 variant="destructive"
                 size="sm"
-                onClick={() => unpublishMutation.mutate({ formId, status: "CLOSED" })}
+                onClick={() => unpublishMutation.mutate({ formId })}
                 disabled={unpublishMutation.isPending}
               >
                 Unpublish
@@ -449,10 +556,18 @@ export default function FormEditorLayout({
                   Save as Template
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => duplicateMutation.mutate({ formId })}
+                  onClick={() => cloneMutation.mutate({ formId })}
                 >
                   Duplicate
                 </DropdownMenuItem>
+                {!isArchived && (
+                  <DropdownMenuItem
+                    onClick={() => archiveMutation.mutate({ formId })}
+                  >
+                    <Archive className="size-4 mr-2" />
+                    Archive
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                   className="text-destructive"
                   onClick={() => setShowDeleteDialog(true)}
@@ -472,7 +587,7 @@ export default function FormEditorLayout({
           open={showShareModal}
           onOpenChange={setShowShareModal}
           slug={formData.slug ?? ""}
-          status={formData.status ?? "DRAFT"}
+          status={formData.status ?? "draft"}
         />
 
         {/* Delete dialog */}

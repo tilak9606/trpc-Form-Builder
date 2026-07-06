@@ -10,5 +10,5 @@ export default defineConfig({
   loader: { ".json": "copy" },
   minify: true,
   sourcemap: false,
-  noExternal: ["@repo/logger", "@repo/services", "@repo/trpc"],
+  noExternal: [/@repo\/.*/],
 });

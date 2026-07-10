@@ -15,6 +15,10 @@ const nextConfig = {
         source: "/api/auth/:path*",
         destination: `${apiBase}/api/auth/:path*`,
       },
+      {
+        source: "/trpc/:path*",
+        destination: `${apiBase}/trpc/:path*`,
+      },
     ];
   },
   async headers() {

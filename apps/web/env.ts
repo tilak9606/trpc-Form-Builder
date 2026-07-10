@@ -3,7 +3,7 @@ import { z } from "zod";
 
 export const env = createEnv({
   client: {
-    NEXT_PUBLIC_API_URL: z.string().default("http://localhost:8000/trpc"),
+    NEXT_PUBLIC_API_URL: z.string().default("/trpc"),
     NEXT_PUBLIC_GOOGLE_CLIENT_ID: z.string().optional(),
   },
   runtimeEnv: {
